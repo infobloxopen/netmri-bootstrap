@@ -1,0 +1,5 @@
+requests>=2.5.2
+urllib3>=1.13
+setuptools>=17.1
+six>=1.10
+wheel>=0.33
