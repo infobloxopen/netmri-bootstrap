@@ -31,17 +31,21 @@ setup(
     author_email='ingmar@infoblox.com',
     url='https://github.com/infobloxopen/netmri-bootstrap',
     packages=[
-        'netmri-bootstrap',
+        'netmri_bootstrap',
     ],
-    package_dir={'netmri-bootstrap':
-                 'netmri-bootstrap'},
+    scripts=['scripts/netmri-bootstrap.py'],
+    package_dir={'netmri_bootstrap':
+                 'netmri_bootstrap'},
     include_package_data=True,
+    package_data={
+        'netmri_bootstrap': ['config.json.in']
+    },
     install_requires=requirements,
     license="Apache",
     zip_safe=False,
     keywords='netmri-bootstrap',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',

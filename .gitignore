@@ -1,5 +1,8 @@
 *.py[cod]
 
+# For security purposes
+config.json
+
 # C extensions
 *.so
 
