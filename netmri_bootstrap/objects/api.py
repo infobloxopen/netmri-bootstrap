@@ -1,12 +1,14 @@
 import os
 import re
 import json
+import logging
 import importlib
 from netmri_bootstrap import config
-import infoblox_netmri
-from infoblox_netmri.client import InfobloxNetMRI
+#import infoblox_netmri
+#from infoblox_netmri.client import InfobloxNetMRI
 from lxml.builder import E
 import lxml.etree as etree
+logger = logging.getLogger(__name__)
 
 
 class ApiObject():
@@ -26,6 +28,7 @@ class ApiObject():
         return res
 
     def from_dict(self, metadata):
+        logger.debug(f"setting metadata for instance of {self.__class__.__name__} with {metadata}")
         for attr in self._get_attrlist():
             if attr.startswith('_'):
                 continue
@@ -69,12 +72,15 @@ class ApiObject():
         return getattr(the_module, subclass_name)
 
     @classmethod
-    def from_api(klass, item):
+    # Create object from XXXRemote 
+    def from_api(klass, remote):
+        logger.debug(f"creating {klass.__name__} from {remote.__class__}")
         item_dict = {}
         for attr in klass._get_attrlist():
             if attr.startswith('_'):
                 continue
-            item_dict[attr] = getattr(item, attr, None)
+            item_dict[attr] = getattr(remote, attr, None)
+        logger.debug(f"setting attributes from {item_dict}")
         return klass(**item_dict)
 
     @classmethod
@@ -82,11 +88,13 @@ class ApiObject():
         if klass.__name__ == "ApiObject":
             klass = klass._get_subclass_by_path(blob.path)
 
+        logger.debug(f"creating {klass.__name__} from {blob.path}")
         item_dict = {}
         note = blob.find_note_on_ancestors()
         if note.content is not None:    
             item_dict = dict(**(note.content)) # poor man's deepcopy
         item_dict['path'] = blob.path
+        logger.debug(f"setting attributes from {item_dict}")
         res = klass(**item_dict)
         res._blob = blob
         res.load_content_from_repo()
@@ -99,10 +107,12 @@ class ApiObject():
         raise NotImplementedError("This method must be defined in a subclass")
 
     def load_content_from_repo(self):
+        logger.debug(f"loading content for {self.api_broker} from {self._blob.path}")
         self._content = self._blob.get_content()
 
     def delete_on_server(self):
         broker = self.get_broker()
+        logger.debug(f"calling delete method of {broker.controller} with id {self.id}")
         broker.destroy(id=self.id)
 
     def push_to_api(self):
@@ -113,6 +123,7 @@ class ApiObject():
                 raise ValueError(f"There is no such file in the repository")
             else:
                 raise ValueError(f"Content for {self.path} is not loaded")
+        logger.debug(f"Pushing {self.path} to netmri")
         api_result = self._do_push_to_api()
         # FIXME: fix copypaste
         item_dict = {}
@@ -121,7 +132,7 @@ class ApiObject():
                 continue
             item_dict[attr] = getattr(api_result, attr, None)
         self.from_dict(item_dict)
-        self._blob.note = item_dict
+        self._blob.note = self.to_dict()
         self._blob.note.save()
 
     # _do_push_to_api must be defined in a subclass and must return XXXRemote object.
@@ -134,14 +145,17 @@ class ApiObject():
         raise NotImplementedError("This method must be defined in a subclass")
 
     def get_full_path(self):
-        pass # TODO
+        # TODO: find path by broker and id if no path is provided
+        pass 
 
     # TODO: must create git blobs instead of files so it'll work on bare repo
     # See https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
+    # also, git notes should be added here
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
+        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
         with open(fn, 'w') as f:
             f.write(self._content)
         return fn
@@ -175,20 +189,26 @@ class Script(ApiObject):
         return os.path.join(self.scripts_dir(), subdir)
 
     def load_content_from_api(self):
-        res = self.get_broker().export_file(id=self.id)
+        broker = self.get_broker()
+        logger.debug(f"downloading content for {self.api_broker} id {self.id}")
+        res = broker.export_file(id=self.id)
         self._content = res["content"]
 
     def _do_push_to_api(self):
         broker = self.get_broker()
         if self.id is None:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
             rv = broker.create(script_file=self._content, language=self.language)
         else:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
             rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
+        return rv
 
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.get_subdir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
+        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
         with open(fn, 'w') as f:
             f.write(self.build_metadata_block())
             f.write(self._content)
@@ -237,6 +257,7 @@ class Script(ApiObject):
         if 'name' not in metadata:
             metadata['name'] = os.path.basename(self.path)
 
+        logger.debug(f"setting object metadata from {metadata}")
         self.from_dict(metadata)
 
     @staticmethod
@@ -279,14 +300,19 @@ class ConfigList(ApiObject):
         return os.path.join(self.scripts_dir(), name)
 
     def load_content_from_api(self):
+        logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         try:
             res = self.get_broker().export(id=self.id)
         except json.JSONDecodeError:
-            print("You have hit a bug in netmri Python client. Please update it to at least [VERSION_UNAVAILABLE]")
+            logger.error("You have hit a bug in netmri Python client. Please update it to at least [VERSION_UNAVAILABLE]")
             raise 
         self._content = res["content"]
 
     def _do_push_to_api(self):
+        msg = f"Pushing {self.api_broker} {self.path} to netmri"
+        if self.id is not None:
+            msg += f" (id {self.id})"
+        logger.info(msg)
         # Import of config lists is very, very broken
         broker = self.get_broker()
         self.client._authenticate()
@@ -303,6 +329,7 @@ class ConfigList(ApiObject):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
+        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
         with open(fn, 'w') as f:
             # No need to write metadata block, it's already exported
             f.write(self._content)
@@ -336,6 +363,7 @@ class ConfigList(ApiObject):
         if 'name' not in metadata:
             metadata['name'] = os.path.basename(self.path)
 
+        logger.debug(f"setting object metadata from {metadata}")
         self.from_dict(metadata)
 
 
@@ -357,12 +385,14 @@ class XmlObject(ApiObject):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
+        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
         content = etree.tostring(self._content, pretty_print=True, xml_declaration=True, encoding="UTF-8")
         with open(fn, 'wb') as f:
             f.write(content)
         return fn
 
     def load_content_from_api(self):
+        logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         broker = self.get_broker()
         res = self.get_broker().show(id=self.id)
         rule_tree = E(self.root_element)
@@ -393,6 +423,7 @@ class XmlObject(ApiObject):
         self._content = rule_tree
 
     def load_content_from_repo(self):
+        logger.debug(f"loading content for {self.api_broker} from {self._blob.path}")
         content = self._blob.get_content(return_bytes=True)
         self._content = etree.fromstring(content)
 
@@ -417,9 +448,11 @@ class PolicyRule(XmlObject):
         broker = self.get_broker()
         update_dict = self.to_dict()
         if self.id is None:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
             res = broker.update(**update_dict)
 
         return res["policy_rule"]
@@ -488,9 +521,11 @@ class Policy(XmlObject):
         broker = self.get_broker()
         update_dict = self.to_dict()
         if self.id is None:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
+            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
             res = broker.update(**update_dict)
 
         old_rules = [r["short_name"] for r in broker.policy_rules(id=self.id)]
@@ -501,7 +536,6 @@ class Policy(XmlObject):
         old_rules_set = set(old_rules)
         new_rules_set = set(self.rules)
 
-
         invalid_rules = new_rules_set - all_rules_set
         if invalid_rules:
             raise ValueError(f"Policy {self.short_name} references nonexistent rule(s): " + ",".join(invalid_rules))
@@ -509,9 +543,11 @@ class Policy(XmlObject):
         rules_to_delete = [all_rules[short_name] for short_name in old_rules_set - new_rules_set]
         rules_to_add = [all_rules[short_name] for short_name in new_rules_set - old_rules_set ]
         for rule_id in rules_to_delete:
+            logger.debug(f"Removing reference to rule {rule_id} from policy {self.id}")
             broker.remove_policy_rules(id=self.id, policy_rule_id=rule_id)
 
         for rule_id in rules_to_add:
+            logger.debug(f"Adding reference to rule {rule_id} to policy {self.id}")
             broker.add_policy_rules(id=self.id, policy_rule_id=rule_id)
         return res["policy"]
 

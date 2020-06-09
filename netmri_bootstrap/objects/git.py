@@ -3,6 +3,8 @@ import os
 import git
 import json
 import binascii
+import logging
+logger = logging.getLogger(__name__)
 
 # Notes in Git cannot exist without parent object (blob or commit). Therefore,
 # all notes should be accessed as .note property of their parent objects
@@ -17,6 +19,7 @@ class _Note():
     # repo.git.notes() runs git executable. Perhaps direct access to git database
     # via gitdb or GitCmdObjectDB would be faster
     def read_note(self):
+        logger.debug(f"Loading git note for {self.parent}")
         note_raw = None
         try:
             note_raw = self.repo.git.notes('show', self.parent)
@@ -34,6 +37,7 @@ class _Note():
 
     def save(self):
         # TODO: delete note on all ancestors of current blob
+        logger.debug(f"Saving git note for {self.parent}: {self.content}")
         self.repo.git.notes('add', self.parent, '-m', json.dumps(self.content), '-f')
 
 
@@ -65,6 +69,7 @@ class Blob():
     @property
     def note(self):
         if self._note is None:
+            logger.debug(f"Trying to load git note for {self.id}")
             self._note = _Note(self.repo, self.id)
             self._note.read_note()
         return self._note
@@ -82,10 +87,13 @@ class Blob():
         self._note.save()
 
     def find_note_on_ancestors(self):
+        logger.debug(f"Trying to find git note on ancestors of {self.id}")
         note = self.note
         if note.content is None:
+            logger.debug(f"Examining all blobs for path {self.path}")
             for commit in self.repo.head.commit.iter_parents(paths=self.path):
                 ancestor = Blob(self.repo, commit.tree[self.path])
+                logger.debug(f"Examining note on {ancestor.id}")
                 if ancestor.note.content is not None:
                     # multiple tree entries will point to same blob if their 
                     # content is identical. We have to account for the fact that
@@ -97,11 +105,15 @@ class Blob():
                     #   git add b.ccs
                     #   git commit
                     if ancestor.note.content['path'] == self.path:
+                        logger.debug(f"Found note on {ancestor.id}")
                         note = ancestor.note
+                    else:
+                        logger.debug(f"Ancestor has path {ancestor.note.content['path']}, but we need note for {self.path}: two copies of same file have diverged?")
                     break
         return note
 
     def get_content(self, return_bytes=False):
+        logger.debug(f"Loading content for {self.path} from blob {self.id}")
         if return_bytes:
             return self._blob.data_stream.read()
         return self._blob.data_stream.read().decode('utf-8')
@@ -122,9 +134,11 @@ class Repo():
 
     @classmethod
     def init_empty_repo(klass, repo_path, watched_branch='master'):
+        logger.warn(f"Creating empty repo in {repo_path}")
         git.Repo.init(repo_path)
         # Create branch to sync with netmri (see bootstrap_branch in config)
         if watched_branch != "master":
+            logger.debug(f"Creating branch {watched_branch}")
             branch = repo.create_head(watched_branch, 'HEAD')
             repo.head.reference = branch
             # Repo is empty, no need to reset index and working tree
@@ -133,10 +147,12 @@ class Repo():
 
     # TODO: make this work on bare repo
     def stage_file(self, path):
+        logger.debug(f"Adding file {path} for commit")
         rv = self.repo.index.add(path)
         return Blob(self, rv[0].to_blob(self.repo))
 
     def commit(self, message="Committed by netmri-bootstrap"):
+        logger.debug("Committing staged changes to the repo")
         return self.repo.index.commit(message)
 
     def get_blobs(self, commit=None):
@@ -152,6 +168,7 @@ class Repo():
     def mark_bootstrap_sync(self, commit=None, force=True):
         if commit is None:
             commit = self.repo.heads[self.branch].commit
+        logger.debug(f"Marking commit {commit.hexsha} as synced to netmri")
         tag = git.refs.tag.TagReference.create(self.repo, "synced_to_netmri", ref=commit, force=force)
         return tag
 
@@ -159,12 +176,13 @@ class Repo():
     def get_last_synced_commit(self):
         for tag in git.refs.tag.TagReference.iter_items(self.repo):
             if tag.path == "refs/tags/synced_to_netmri":
-                return tag
+                return tag.commit
 
     # NOTE: Untracked and uncommitted files won't be taken into account
     def detect_changes(self):
         old_state = self.get_last_synced_commit()
-        old_blobs = {b.path:b for b in self.get_blobs(old_state.commit)}
+        logger.debug(f"Finding changes since commit {old_state}")
+        old_blobs = {b.path:b for b in self.get_blobs(old_state)}
         new_blobs = {b.path:b for b in self.get_blobs()}
 
         old_paths = set(old_blobs.keys())
@@ -180,6 +198,7 @@ class Repo():
         # pre-commit hook)
         for blob in added:
             if blob in deleted:
+                logger.debug(f"Detected rename for {blob.path}; ignoring")
                 added.remove(blob)
                 deleted.remove(blob)
 
@@ -188,10 +207,13 @@ class Repo():
             if new_blobs[path].id != old_blobs[path].id:
                 changed.append(new_blobs[path])
 
+        logger.debug(f"Added: {added}")
+        logger.debug(f"Deleted: {deleted}")
+        logger.debug(f"Changed: {changed}")
         return (added, deleted, changed)
 
 
-    def iterate_over_revlog(self, paths):
-        return head.commit.iter_items(self, self.head, paths=paths)
+    #def iterate_over_revlog(self, paths):
+    #    return head.commit.iter_items(self, self.head, paths=paths)
 
 
