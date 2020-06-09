@@ -212,8 +212,3 @@ class Repo():
         logger.debug(f"Changed: {changed}")
         return (added, deleted, changed)
 
-
-    #def iterate_over_revlog(self, paths):
-    #    return head.commit.iter_items(self, self.head, paths=paths)
-
-

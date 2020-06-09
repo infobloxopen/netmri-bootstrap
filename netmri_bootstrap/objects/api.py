@@ -4,8 +4,6 @@ import json
 import logging
 import importlib
 from netmri_bootstrap import config
-#import infoblox_netmri
-#from infoblox_netmri.client import InfobloxNetMRI
 from lxml.builder import E
 import lxml.etree as etree
 logger = logging.getLogger(__name__)
@@ -550,21 +548,4 @@ class Policy(XmlObject):
             logger.debug(f"Adding reference to rule {rule_id} to policy {self.id}")
             broker.add_policy_rules(id=self.id, policy_rule_id=rule_id)
         return res["policy"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

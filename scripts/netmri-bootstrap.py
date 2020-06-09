@@ -24,7 +24,11 @@ def initialize_logging(args):
         for lib in ["urllib3", "git", "requests"]:
             logging.getLogger(lib).setLevel(logging.INFO)
 
-    logging.basicConfig(stream=sys.stdout, level=loglevel)
+    log_format = logging.BASIC_FORMAT
+    # Remove extra info from log messages when loglevel is INFO or above
+    if loglevel >= logging.INFO:
+        log_format = "%(message)s"
+    logging.basicConfig(stream=sys.stdout, level=loglevel, format=log_format)
 
 def parse_cmdline_args():
     parser = argparse.ArgumentParser(description="netmri-bootstrap")
