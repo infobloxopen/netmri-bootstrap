@@ -26,7 +26,7 @@ class Bootstrapper:
         logger.debug(f"Downloading API items from NetMRI")
         saved_objs = []
         # TODO: some classes depend on each other. We should account for that and sync them in correct order
-        for klass in [api.Script, api.ConfigList, api.PolicyRule, api.Policy]:
+        for klass in [api.Script, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]:
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
             for item in broker.index():
@@ -54,6 +54,10 @@ class Bootstrapper:
 
     def update_netmri(self):
         added, deleted, changed = self.repo.detect_changes()
+        if len(added) == 0 and len(deleted) == 0 and len(changed) == 0:
+            logger.info("No changes to push to server")
+            return
+
         for blob in deleted:
             logger.debug(f"deleting {blob.path} on netmri")
             script = api.ApiObject.from_blob(blob)

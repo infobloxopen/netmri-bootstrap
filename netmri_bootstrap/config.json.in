@@ -9,7 +9,8 @@
         "Script": "scripts",
         "ConfigList": "lists",
         "PolicyRule": "policy/rules",
-        "Policy": "policy"
+        "Policy": "policy",
+        "ConfigTemplate": "config_templates"
     }   
 }
 

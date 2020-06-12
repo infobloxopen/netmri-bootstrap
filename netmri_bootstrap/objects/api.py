@@ -53,7 +53,7 @@ class ApiObject():
     def scripts_dir(klass):
         path = config.get_config().class_paths.get(klass.__name__, None)
         if path is None:
-            raise ValueError("Cannot determine repo path for {klass.__name__}")
+            raise ValueError(f"Cannot determine repo path for {klass.__name__}")
         return path
 
     @classmethod
@@ -110,7 +110,8 @@ class ApiObject():
 
     def delete_on_server(self):
         broker = self.get_broker()
-        logger.debug(f"calling delete method of {broker.controller} with id {self.id}")
+        logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
+        logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
         broker.destroy(id=self.id)
 
     def push_to_api(self):
@@ -129,6 +130,7 @@ class ApiObject():
             if attr.startswith('_'):
                 continue
             item_dict[attr] = getattr(api_result, attr, None)
+        logger.debug(f"Updating object attributes with {item_dict}")
         self.from_dict(item_dict)
         self._blob.note = self.to_dict()
         self._blob.note.save()
@@ -153,7 +155,7 @@ class ApiObject():
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
+        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
         with open(fn, 'w') as f:
             f.write(self._content)
         return fn
@@ -195,10 +197,10 @@ class Script(ApiObject):
     def _do_push_to_api(self):
         broker = self.get_broker()
         if self.id is None:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
+            logger.info(f"{self.path} -> {self.api_broker} {self.name} NEW")
             rv = broker.create(script_file=self._content, language=self.language)
         else:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
+            logger.info(f"{self.path} -> {self.api_broker} {self.name} (id {self.id})")
             rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
         return rv
 
@@ -206,7 +208,7 @@ class Script(ApiObject):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.get_subdir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
+        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
         with open(fn, 'w') as f:
             f.write(self.build_metadata_block())
             f.write(self._content)
@@ -307,8 +309,10 @@ class ConfigList(ApiObject):
         self._content = res["content"]
 
     def _do_push_to_api(self):
-        msg = f"Pushing {self.api_broker} {self.path} to netmri"
-        if self.id is not None:
+        msg = f"{self.path} -> {self.api_broker} {self.name}"
+        if self.id is None:
+            msg += f" NEW"
+        else:
             msg += f" (id {self.id})"
         logger.info(msg)
         # Import of config lists is very, very broken
@@ -327,7 +331,7 @@ class ConfigList(ApiObject):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
+        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
         with open(fn, 'w') as f:
             # No need to write metadata block, it's already exported
             f.write(self._content)
@@ -365,6 +369,113 @@ class ConfigList(ApiObject):
         self.from_dict(metadata)
 
 
+class ConfigTemplate(ApiObject):
+    api_broker = "ConfigTemplate"
+
+    def __init__(self, **kwargs):
+        super(ConfigTemplate, self).__init__(**kwargs)
+
+    @classmethod
+    def _get_attrlist(klass):
+        return ('device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text') + super(ConfigTemplate, klass)._get_attrlist()
+
+    def generate_path(self):
+        # Name must be unique, so it is safe
+        name = f"{self.name}.txt"
+        name = re.sub("[^A-Za-z0-9_\-.]", "_", name)
+        return os.path.join(self.scripts_dir(), name)
+
+    def load_content_from_api(self):
+        logger.debug(f"downloading content for {self.api_broker} id {self.id}")
+        res = self.get_broker().export(id=self.id)
+        self._content = res["content"]
+
+    def _do_push_to_api(self):
+        broker = self.get_broker()
+        api_args = self.to_dict()
+        api_args["template_text"] = self._strip_metadata_block()
+        for k, v in api_args.items():
+            if v is None:
+                api_args[k] = ""
+        if self.id is None:
+            logger.info(f"{self.path} -> {self.api_broker} {self.name} NEW")
+            logger.debug(f"calling {self.api_broker}.create with {api_args}")
+            res = broker.create(**api_args)
+        else:
+            logger.info(f"{self.path} -> {self.api_broker} {self.name} (id {self.id})")
+            logger.debug(f"calling {self.api_broker}.update with {api_args}")
+            res = broker.update(**api_args)
+
+        return res["config_template"]
+
+    def _strip_metadata_block(self):
+        lines_filtered = []
+        metadata_boundary_regex = re.compile(r'^#{10,}$')
+        metadata_block_started = False
+        metadata_block_ended = False
+        for line in self._content.splitlines():
+            if metadata_block_ended:
+                lines_filtered.append(line)
+            elif not metadata_block_started:
+                if metadata_boundary_regex.match(line):
+                    metadata_block_started = True
+                else:
+                    lines_filtered.append(line)
+            elif metadata_block_started:
+                if metadata_boundary_regex.match(line):
+                    metadata_block_ended = True
+        return "\n".join(lines_filtered)
+
+
+    def set_metadata_from_content(self):
+        # There can be several variables. Each of them is defined on its own line pefixed with "## Template-Variable: " tag
+        template_vars = []
+        # Description can be multi-line. Every line is prefixed with "## Template-Description: " tag
+        template_description = []
+        metadata = {}
+        tag2attr = {
+                "Level": "risk_level",
+                "Vendor": "vendor",
+                "Device Type": "device_type",
+                "Model": "model",
+                "Version": "version"
+            }
+        name_regex = re.compile(r'#*\s+Export of Template:\s+(.*)$')
+        attr_regex = re.compile(r'^#*\s*Template-([^:]*):\s+(.*)$')
+        for line in self._content.splitlines():
+            name_match = name_regex.match(line)
+            if name_match:
+                metadata["name"] = name_match.group(1)
+                continue
+            attr_match = attr_regex.match(line)
+            if attr_match:
+                tag = attr_match.group(1)
+                val = attr_match.group(2)
+                # We use first occurence of metadata entry, if there is more than one of it in the file
+                if tag == "Variable":
+                    template_vars.append(val)
+                elif tag == 'Description':
+                    template_description.append(val)
+                elif tag in tag2attr:
+                    # We use first match here
+                    if tag not in metadata:
+                        metadata[tag2attr[tag]] = val
+                else:
+                    logging.warn(f"Unknown {self.api_broker} metadata tag {tag}. Ignoring")
+
+        metadata["template_variables_text"] = template_vars
+        metadata["description"] = "\n".join(template_description)
+        # These values are mandatory. Fill them from path, for the lack of better alternative
+        if 'name' not in metadata:
+            metadata['name'] = os.path.basename(self.path)
+
+        # This field is required. Set it to "Device" if not specified
+        if self.template_type is None: 
+            metadata["template_type"] = "Device"
+        logger.debug(f"setting object metadata from {metadata}")
+        self.from_dict(metadata)
+
+
 class XmlObject(ApiObject):
     def __init__(self, **kwargs):
         super(XmlObject, self).__init__(**kwargs)
@@ -383,7 +494,7 @@ class XmlObject(ApiObject):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"saving {self.api_broker} \"{self.name}\" (id {self.id}) to {fn}")
+        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
         content = etree.tostring(self._content, pretty_print=True, xml_declaration=True, encoding="UTF-8")
         with open(fn, 'wb') as f:
             f.write(content)
@@ -446,11 +557,13 @@ class PolicyRule(XmlObject):
         broker = self.get_broker()
         update_dict = self.to_dict()
         if self.id is None:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
+            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} NEW")
+            logger.debug(f"calling {self.api_broker}.create with {update_dict}")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
+            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} (id {self.id})")
+            logger.debug(f"calling {self.api_broker}.update with {update_dict}")
             res = broker.update(**update_dict)
 
         return res["policy_rule"]
@@ -519,11 +632,13 @@ class Policy(XmlObject):
         broker = self.get_broker()
         update_dict = self.to_dict()
         if self.id is None:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri")
+            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} NEW")
+            logger.debug(f"calling {self.api_broker}.create with {update_dict}")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
-            logger.info(f"Pushing {self.api_broker} {self.path} to netmri (id {self.id})")
+            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} (id {self.id})")
+            logger.debug(f"calling {self.api_broker}.update with {update_dict}")
             res = broker.update(**update_dict)
 
         old_rules = [r["short_name"] for r in broker.policy_rules(id=self.id)]
