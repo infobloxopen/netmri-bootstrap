@@ -141,10 +141,8 @@ class ApiObject():
             logger.debug(f"Updating object attributes with API result {item_dict}")
             self.set_metadata(item_dict)
         except Exception as e:
-            err = str(e) 
-            self.error = err
-            logger.error(type(e))
-            logger.error(err)
+            self.error = e.message
+            logger.error(self.error)
 
         self.save_note()
 

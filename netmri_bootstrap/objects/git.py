@@ -19,14 +19,14 @@ class _Note():
     # repo.git.notes() runs git executable. Perhaps direct access to git database
     # via gitdb or GitCmdObjectDB would be faster
     def read_note(self):
-        logger.debug(f"Loading git note for {self.parent}")
+        logger.debug(f"Loading git note for {self.parent.id}")
         note_raw = None
         try:
-            note_raw = self.repo.git.notes('show', self.parent)
+            note_raw = self.repo.git.notes('show', self.parent.id)
         except git.exc.GitCommandError as e:
             # This exception is thrown if anything goes wrong. Not having
             # a note attached is expected, any other error should be re-raised
-            no_note_error = f"error: no note found for object {self.parent}"
+            no_note_error = f"error: no note found for object {self.parent.id}"
             if not no_note_error in e.stderr:
                 raise
         if note_raw is None:
@@ -36,9 +36,18 @@ class _Note():
 
 
     def save(self):
-        # TODO: delete note on all ancestors of current blob
-        logger.debug(f"Saving git note for {self.parent}: {self.content}")
-        self.repo.git.notes('add', self.parent, '-m', json.dumps(self.content), '-f')
+        logger.debug(f"Saving git note for {self.parent.id}: {self.content}")
+        self.repo.git.notes('add', self.parent.id, '-m', json.dumps(self.content), '-f')
+        old_note = self.parent.find_note_on_ancestors(skip_self=True)
+        if old_note is not None:
+            old_note.clear()
+        # Reset index to keep stale notes out of it
+        self.repo.reset_object_index()
+
+    def clear(self):
+        self.content = None
+        logger.debug(f"Deleting git note for {self.parent.id}")
+        self.repo.git.notes('remove', self.parent.id)
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 
@@ -72,14 +81,14 @@ class Blob():
     def note(self):
         if self._note is None:
             logger.debug(f"Trying to load git note for {self.id}")
-            self._note = _Note(self.repo, self.id)
+            self._note = _Note(self.repo, self)
             self._note.read_note()
         return self._note
 
     @note.setter
     def note(self, note):
         if self._note is None:
-            self._note = _Note(self.repo, self.id)
+            self._note = _Note(self.repo, self)
 
         if (isinstance(note, _Note)):
             self._note.content = note.content
@@ -88,13 +97,19 @@ class Blob():
 
         self._note.save()
 
-    def find_note_on_ancestors(self):
+    def find_note_on_ancestors(self, skip_self=False):
         logger.debug(f"Trying to find git note on ancestors of {self.id}")
-        note = self.note
-        if note.content is None:
+        if skip_self:
+            logger.debug("Skipping own note")
+            note = None # We don't want to return the note if there isn't any note on older revision
+        else:
+            note = self.note
+
+        if skip_self or note.content is None:
             logger.debug(f"Examining all blobs for path {self.path}")
-            for commit in self.repo.head.commit.iter_parents(paths=self.path):
+            for commit in self.repo.repo.head.commit.iter_parents(paths=self.path):
                 ancestor = Blob(self.repo, commit.tree[self.path])
+
                 logger.debug(f"Examining note on {ancestor.id}")
                 if ancestor.note.content is not None:
                     # multiple tree entries will point to same blob if their 
