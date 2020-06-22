@@ -1,9 +1,12 @@
 import os
 import logging
+import time
 from netmri_bootstrap import config
 from netmri_bootstrap.objects import git
 from netmri_bootstrap.objects import api
 logger = logging.getLogger(__name__)
+# TODO: get classes from config and order them according to their dependencies
+object_classes = [api.Script, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]
 
 class Bootstrapper:
     def __init__(self, repo=None):
@@ -25,15 +28,14 @@ class Bootstrapper:
     def export_from_netmri(self):
         logger.debug(f"Downloading API items from NetMRI")
         saved_objs = []
-        # TODO: some classes depend on each other. We should account for that and sync them in correct order
-        for klass in [api.Script, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]:
+        for klass in object_classes:
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
             for item in broker.index():
                 # NetMRI comes with a lot of pre-installed policies and rules. 
                 # These rules cannot be edited by user, so there is little point in keeping them in the repo
                 if self.config.skip_readonly_objects and getattr(item, "read_only", False):
-                    logger.debug(f"skipping item {item.id} because it's read-only")
+                    logger.debug(f"skipping {klass.__name__} \"{item.name}\" because it's read-only")
                     continue
                 logger.debug(f"processing {broker.controller} id {item.id}")
                 obj = klass.from_api(item)
@@ -49,7 +51,7 @@ class Bootstrapper:
         commit = self.repo.commit(message="Repository initialised by netmri-bootstrap")
         self.repo.mark_bootstrap_sync(commit)
         for obj in saved_objs:
-            obj._blob.note = obj.to_dict() # FIXME: must be done in ApiObject class
+            obj.save_note()
 
 
     def update_netmri(self):
@@ -75,14 +77,57 @@ class Bootstrapper:
         self.repo.mark_bootstrap_sync()
 
 
+    # Make sure that scripts weren't changed outside of netmri-bootstrap
+    def check_netmri(self):
+        for klass in object_classes:
+            broker = klass.get_broker()
+            logger.debug(f"getting index of {broker.controller}")
+            api_objects = {}
+            git_objects = {}
+            for api_item in broker.index():
+                if self.config.skip_readonly_objects and getattr(api_item, "read_only", False):
+                    logger.debug(f"skipping {klass.__name__} {api_item.name} because it's read-only")
+                    continue
+                api_objects[api_item.id] = api_item
+
+            for git_item in self.repo.build_object_index()[klass.__name__].values():
+                if git_item["id"] is None:
+                    logger.debug(f"Skipping {klass.__name__} \"{git_item.name}\" because it doesn't have id assigned (not synced to netmri yet?)")
+                    continue
+                git_objects[git_item["id"]] = git_item
+
+            api_objects_set = set(api_objects.keys())
+            git_objects_set = set(git_objects.keys())
+
+            err_count = 0
+            for obj_id in api_objects_set - git_objects_set:
+                obj = api_objects["obj_id"]
+                logger.warn(f"{klass.__name__} \"{obj.name}\" was added outside of netmri-bootstrap")
+                err_count += 1
+
+            for git_id in git_objects_set - api_objects_set:
+                obj = git_objects["obj_id"]
+                logger.warn(f"{klass.__name__} \"{obj['path']}\" was deleted outside of netmri-bootstrap")
+                err_count += 1
+
+            for id in git_objects_set & api_objects_set:
+                api_date = time.strptime(api_objects[id].updated_at, "%Y-%m-%d %H:%M:%S")
+                git_date = time.strptime(git_objects[id]["updated_at"], "%Y-%m-%d %H:%M:%S")
+                if git_date < api_date:
+                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" was changed outside of netmri-bootstrap")
+                    err_count += 1
+
+                # git_date may be newer than api_date after netmri was restored from an archive.
+                if git_date > api_date:
+                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" is outdated on netmri")
+                    err_count += 1
+
+            # TODO: record error in the note and include it in push
+            # True if no errors were found, False otherwise
+            return err_count == 0
+
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will
     # lead to loss of data on netmri side that would be hard to remediate
     def full_resync(repo):
         pass
-
-
-    # Make sure that scripts weren't changed outside of netmri-bootstrap
-    def check_repository():
-        pass
-

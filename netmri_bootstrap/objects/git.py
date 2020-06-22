@@ -39,6 +39,8 @@ class _Note():
         # TODO: delete note on all ancestors of current blob
         logger.debug(f"Saving git note for {self.parent}: {self.content}")
         self.repo.git.notes('add', self.parent, '-m', json.dumps(self.content), '-f')
+        # Reset index to keep stale notes out of it
+        self.repo.reset_object_index()
 
 
 # TODO: As blob objects are immutable, we can memoize them
@@ -131,6 +133,9 @@ class Repo():
         self.branch = watched_branch
 
         self.git = self.repo.git
+        # helper structure to speed up note lookups
+        self._notes_index = None
+
 
     @classmethod
     def init_empty_repo(klass, repo_path, watched_branch='master'):
@@ -149,7 +154,7 @@ class Repo():
     def stage_file(self, path):
         logger.debug(f"Adding file {path} for commit")
         rv = self.repo.index.add(path)
-        return Blob(self, rv[0].to_blob(self.repo))
+        return Blob(self, rv[0].to_blob(self))
 
     def commit(self, message="Committed by netmri-bootstrap"):
         logger.debug("Committing staged changes to the repo")
@@ -161,7 +166,7 @@ class Repo():
         for blob in commit.tree.traverse():
             if isinstance(blob, git.objects.tree.Tree):
                 continue
-            yield Blob(self.repo, blob)
+            yield Blob(self, blob)
 
 
     # Creates tag "synced_to_netmri" that points to last commit successfully pushed to server.
@@ -211,4 +216,32 @@ class Repo():
         logger.debug(f"Deleted: {deleted}")
         logger.debug(f"Changed: {changed}")
         return (added, deleted, changed)
+
+    def build_object_index(self):
+        if self._notes_index is None:
+            self._notes_index = {}
+            for line in self.git.notes('list').splitlines():
+                note_target = line.split()[1]
+                note_obj = json.loads(self.git.notes('show', note_target))
+                note_class = note_obj["class"]
+                note_id = note_obj["id"]
+                if note_class not in self._notes_index:
+                    self._notes_index[note_class] = {}
+                if note_id in self._notes_index[note_class]:
+                    logger.warn(f"Found duplicates for {note_class} id {note_id}: {self._notes_index[note_class][note_id]['path']}")
+                self._notes_index[note_class][note_id] = note_obj
+        return self._notes_index
+
+    def reset_object_index(self):
+        self._notes_index = None
+
+    def find_note_by_id(self, klass, id):
+        if self._notes_index is None:
+            self.build_object_index()
+        # klass can be either a class or class name
+        if (isinstance(klass, type)):
+            klass = klass.__name__
+        class_subindex = self._notes_index.get(klass, {})
+        return class_subindex.get(id, None)
+
 

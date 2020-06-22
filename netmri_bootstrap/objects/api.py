@@ -12,24 +12,37 @@ logger = logging.getLogger(__name__)
 class ApiObject():
     client = config.get_api_client()
     api_broker = None
+    # Lists all attributes that should be received from api
+    api_attributes = ()
+    # Lists all attributes that are unique on netmri (such as name)
+    secondary_keys = ()
 
-    def __init__(self, **kwargs):
+    def __init__(self, id=None, blob=None, error=None, **api_metadata):
         self.broker = self.get_broker()
-        self.from_dict(kwargs)
+        self.id = id
+        if blob is not None:
+            self._blob = blob
+            self.path = blob.path
+        else:
+            self._blob = None
+            self.path = None
+        self.error = error
+        self.updated_at = api_metadata.get("updated_at", None)
+        self.set_metadata(api_metadata)
 
-    def to_dict(self):
+    def get_metadata(self):
         res = {}
-        for attr in self._get_attrlist():
-            if attr.startswith('_'):
-                continue
+        if self.id is not None:
+            res['id'] = self.id
+        for attr in self.api_attributes:
             res[attr] = getattr(self, attr)
         return res
 
-    def from_dict(self, metadata):
+    def set_metadata(self, metadata):
         logger.debug(f"setting metadata for instance of {self.__class__.__name__} with {metadata}")
-        for attr in self._get_attrlist():
-            if attr.startswith('_'):
-                continue
+        if 'id' in metadata:
+            self.id = metadata['id']
+        for attr in self.api_attributes:
             # Don't replace existing attributes if we only got partial metadata
             # (can happen if we parse metadata block)
             # If you want to unset an attribute, set it to None explicitly
@@ -38,12 +51,6 @@ class ApiObject():
             value = metadata.get(attr, None)
             setattr(self, attr, value)
 
-    @classmethod
-    def _get_attrlist(klass):
-        # Keys that should not be sent to API must begin with underscore.
-        # Note that everything else WILL be sent to API, so watch out if you
-        # pass this to broker.update() method
-        return ('id', 'path', '_content', 'updated_at', 'description', 'name', '_blob')
 
     @classmethod
     def get_broker(klass):
@@ -74,11 +81,11 @@ class ApiObject():
     def from_api(klass, remote):
         logger.debug(f"creating {klass.__name__} from {remote.__class__}")
         item_dict = {}
-        for attr in klass._get_attrlist():
-            if attr.startswith('_'):
-                continue
+        item_dict["id"] = remote.id
+        item_dict["updated_at"] = remote.updated_at
+        for attr in klass.api_attributes:
             item_dict[attr] = getattr(remote, attr, None)
-        logger.debug(f"setting attributes from {item_dict}")
+        logger.debug(f"creating {klass.api_broker} object from {item_dict}")
         return klass(**item_dict)
 
     @classmethod
@@ -91,16 +98,16 @@ class ApiObject():
         note = blob.find_note_on_ancestors()
         if note.content is not None:    
             item_dict = dict(**(note.content)) # poor man's deepcopy
+        item_dict['blob'] = blob
         item_dict['path'] = blob.path
         logger.debug(f"setting attributes from {item_dict}")
         res = klass(**item_dict)
-        res._blob = blob
         res.load_content_from_repo()
+        # This will update metadata values from note with ones from content itself
         # Note that we don't update git note here. It will be done on api push, if necessary
         res.set_metadata_from_content()
         return res
 
-    # This must be overridden in a subclass
     def load_content_from_api(self):
         raise NotImplementedError("This method must be defined in a subclass")
 
@@ -122,18 +129,24 @@ class ApiObject():
                 raise ValueError(f"There is no such file in the repository")
             else:
                 raise ValueError(f"Content for {self.path} is not loaded")
-        logger.debug(f"Pushing {self.path} to netmri")
-        api_result = self._do_push_to_api()
-        # FIXME: fix copypaste
-        item_dict = {}
-        for attr in self._get_attrlist():
-            if attr.startswith('_'):
-                continue
-            item_dict[attr] = getattr(api_result, attr, None)
-        logger.debug(f"Updating object attributes with {item_dict}")
-        self.from_dict(item_dict)
-        self._blob.note = self.to_dict()
-        self._blob.note.save()
+        if self.id is None:
+            logger.info(f"{self.path} -> {self.api_broker} \"{self.name}\" NEW")
+        else:
+            logger.info(f"{self.path} -> {self.api_broker} \"{self.name}\" (id {self.id})")
+        try:
+            api_result = self._do_push_to_api()
+            item_dict = {}
+            for attr in self.api_attributes:
+                item_dict[attr] = getattr(api_result, attr, None)
+            logger.debug(f"Updating object attributes with API result {item_dict}")
+            self.set_metadata(item_dict)
+        except Exception as e:
+            err = str(e) 
+            self.error = err
+            logger.error(type(e))
+            logger.error(err)
+
+        self.save_note()
 
     # _do_push_to_api must be defined in a subclass and must return XXXRemote object.
     # In some cases, this method must call self.get_broker().show(id=received_id) to obtain necessary metadata
@@ -160,6 +173,10 @@ class ApiObject():
             f.write(self._content)
         return fn
 
+    # TODO: this must be moved to save_to_disk when it'll work with git blobs instead of files
+    def save_note(self):
+        self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "class": self.__class__.__name__}
+
     # NOTE: These methods SHOULD be overridden in subclasses
     def generate_path(self):
         return os.path.join(self.scripts_dir(), str(self.id))
@@ -167,13 +184,11 @@ class ApiObject():
 
 class Script(ApiObject):
     api_broker = "Script"
+    api_attributes = ('name', 'description', 'risk_level', 'language', 'category')
+    secondary_keys = ("name")
 
     def __init__(self, **kwargs):
         super(Script, self).__init__(**kwargs)
-
-    @classmethod
-    def _get_attrlist(klass):
-        return ('risk_level', 'language', 'category') + super(Script, klass)._get_attrlist()
 
     def generate_path(self):
         # Name must be unique, so it is safe
@@ -197,10 +212,8 @@ class Script(ApiObject):
     def _do_push_to_api(self):
         broker = self.get_broker()
         if self.id is None:
-            logger.info(f"{self.path} -> {self.api_broker} {self.name} NEW")
             rv = broker.create(script_file=self._content, language=self.language)
         else:
-            logger.info(f"{self.path} -> {self.api_broker} {self.name} (id {self.id})")
             rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
         return rv
 
@@ -258,7 +271,7 @@ class Script(ApiObject):
             metadata['name'] = os.path.basename(self.path)
 
         logger.debug(f"setting object metadata from {metadata}")
-        self.from_dict(metadata)
+        self.set_metadata(metadata)
 
     @staticmethod
     def get_extension(lang):
@@ -289,6 +302,8 @@ class Script(ApiObject):
 
 class ConfigList(ApiObject):
     api_broker = "ConfigList"
+    api_attributes = ("name", "description")
+    secondary_keys = ("name")
 
     def __init__(self, **kwargs):
         super(ConfigList, self).__init__(**kwargs)
@@ -309,12 +324,6 @@ class ConfigList(ApiObject):
         self._content = res["content"]
 
     def _do_push_to_api(self):
-        msg = f"{self.path} -> {self.api_broker} {self.name}"
-        if self.id is None:
-            msg += f" NEW"
-        else:
-            msg += f" (id {self.id})"
-        logger.info(msg)
         # Import of config lists is very, very broken
         broker = self.get_broker()
         self.client._authenticate()
@@ -366,18 +375,16 @@ class ConfigList(ApiObject):
             metadata['name'] = os.path.basename(self.path)
 
         logger.debug(f"setting object metadata from {metadata}")
-        self.from_dict(metadata)
+        self.set_metadata(metadata)
 
 
 class ConfigTemplate(ApiObject):
     api_broker = "ConfigTemplate"
+    api_attributes = ('name', 'description', 'device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text')
+    secondary_keys = ("name")
 
     def __init__(self, **kwargs):
         super(ConfigTemplate, self).__init__(**kwargs)
-
-    @classmethod
-    def _get_attrlist(klass):
-        return ('device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text') + super(ConfigTemplate, klass)._get_attrlist()
 
     def generate_path(self):
         # Name must be unique, so it is safe
@@ -392,17 +399,15 @@ class ConfigTemplate(ApiObject):
 
     def _do_push_to_api(self):
         broker = self.get_broker()
-        api_args = self.to_dict()
+        api_args = self.get_metadata()
         api_args["template_text"] = self._strip_metadata_block()
         for k, v in api_args.items():
             if v is None:
                 api_args[k] = ""
         if self.id is None:
-            logger.info(f"{self.path} -> {self.api_broker} {self.name} NEW")
             logger.debug(f"calling {self.api_broker}.create with {api_args}")
             res = broker.create(**api_args)
         else:
-            logger.info(f"{self.path} -> {self.api_broker} {self.name} (id {self.id})")
             logger.debug(f"calling {self.api_broker}.update with {api_args}")
             res = broker.update(**api_args)
 
@@ -473,16 +478,12 @@ class ConfigTemplate(ApiObject):
         if self.template_type is None: 
             metadata["template_type"] = "Device"
         logger.debug(f"setting object metadata from {metadata}")
-        self.from_dict(metadata)
+        self.set_metadata(metadata)
 
 
 class XmlObject(ApiObject):
     def __init__(self, **kwargs):
         super(XmlObject, self).__init__(**kwargs)
-
-    @classmethod
-    def _get_attrlist(klass):
-        return super(XmlObject, klass)._get_attrlist()
 
     def generate_path(self):
         # Name must be unique, so it is safe
@@ -539,6 +540,9 @@ class XmlObject(ApiObject):
 
 class PolicyRule(XmlObject):
     api_broker = "PolicyRule"
+    api_attributes = ('name', 'description', 'author', 'set_filter', 'rule_logic', 'severity', 'action_after_exec', 'remediation', 'short_name', 'read_only')
+    secondary_keys = ("name", "short_name")
+
     root_element = "policy-rule"
     api_attrs = ["action-after-exec", "author", "created-at", "description", "name", "read-only", "remediation", "severity", "short-name", "updated-at", "rule-logic", "script-filter"]
     datetime_attrs = ["created-at", "updated_at"]
@@ -549,20 +553,14 @@ class PolicyRule(XmlObject):
     def __init__(self, **kwargs):
         super(PolicyRule, self).__init__(**kwargs)
 
-    @classmethod
-    def _get_attrlist(klass):
-        return ('author', 'set_filter', 'rule_logic', 'severity', 'action_after_exec', 'remediation', 'short_name', 'read_only') + super(PolicyRule, klass)._get_attrlist()
-
     def _do_push_to_api(self):
         broker = self.get_broker()
-        update_dict = self.to_dict()
+        update_dict = self.get_metadata()
         if self.id is None:
-            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} NEW")
             logger.debug(f"calling {self.api_broker}.create with {update_dict}")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
-            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} (id {self.id})")
             logger.debug(f"calling {self.api_broker}.update with {update_dict}")
             res = broker.update(**update_dict)
 
@@ -592,6 +590,9 @@ class Policy(XmlObject):
     # We should sync policy rules before we sync policies that use them
     depends_on=["PolicyRule"]
     api_broker = "Policy"
+    api_attributes = ('name', 'description', 'author', 'set_filter', 'severity', 'schedule_mode', 'short_name', 'read_only')
+    secondary_keys = ("name", "short_name")
+
     root_element = "policy"
     api_attrs = ["author", "created-at", "description", "name", "read-only", "schedule-mode", "short-name", "updated-at", "set-filter"]
     datetime_attrs = ["created-at", "updated_at"]
@@ -601,10 +602,6 @@ class Policy(XmlObject):
 
     def __init__(self, *args, **kwargs):
         super(Policy, self).__init__(*args, **kwargs)
-
-    @classmethod
-    def _get_attrlist(klass):
-        return ('author', 'set_filter', 'severity', 'schedule_mode', 'short_name', 'read_only') + super(Policy, klass)._get_attrlist()
 
     def load_content_from_api(self):
         super(Policy, self).load_content_from_api()
@@ -630,14 +627,12 @@ class Policy(XmlObject):
 
     def _do_push_to_api(self):
         broker = self.get_broker()
-        update_dict = self.to_dict()
+        update_dict = self.get_metadata()
         if self.id is None:
-            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} NEW")
             logger.debug(f"calling {self.api_broker}.create with {update_dict}")
             res = broker.create(**update_dict)
             self.id = res['id']
         else:
-            logger.info(f"{self.path} -> {self.api_broker} {self.short_name} (id {self.id})")
             logger.debug(f"calling {self.api_broker}.update with {update_dict}")
             res = broker.update(**update_dict)
 

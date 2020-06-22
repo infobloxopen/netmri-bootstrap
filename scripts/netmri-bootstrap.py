@@ -32,9 +32,14 @@ def initialize_logging(args):
 
 def parse_cmdline_args():
     parser = argparse.ArgumentParser(description="netmri-bootstrap")
-    operation = parser.add_mutually_exclusive_group(required=True)
-    operation.add_argument("--init_repo", help="Create empty repository and fetch scripts", action='store_true')
-    operation.add_argument("--update_netmri", help="update scripts on NetMRI from git repo", action='store_true')
+    commands = ["init", "push", "check"]
+    commands_help = """
+    Can be one of three operations:
+    init: create empty repository and fill it with data from server
+    push: update scripts in the repo from server
+    check: verify that repo and the server are in sync
+    """
+    parser.add_argument("command", help=commands_help, choices=commands)
 
     parser.add_argument("-q", help="Quiet logging. Can be repeated to suppress more messages", action='count', default=0)
     parser.add_argument("-v", help="Verbose logging. Can be repeated to increase verbosity", action='count', default=0)
@@ -46,9 +51,15 @@ if __name__ == "__main__":
     args = parse_cmdline_args()
     initialize_logging(args)
 
-    if args.init_repo:
+    if args.command == "init":
         bs = Bootstrapper.init_empty_repo()
         bs.export_from_netmri()
-    else:
+    elif args.command == "push":
         bs = Bootstrapper()
         bs.update_netmri()
+    elif args.command == "check":
+        bs = Bootstrapper()
+        bs.check_netmri()
+    else:
+        # We don't expect to get here because of argparse
+        pass
