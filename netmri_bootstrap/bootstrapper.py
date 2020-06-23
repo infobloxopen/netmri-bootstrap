@@ -90,9 +90,9 @@ class Bootstrapper:
                     continue
                 api_objects[api_item.id] = api_item
 
-            for git_item in self.repo.build_object_index()[klass.__name__].values():
+            for git_item in self.repo.object_index[klass.__name__].values():
                 if git_item["id"] is None:
-                    logger.debug(f"Skipping {klass.__name__} \"{git_item.name}\" because it doesn't have id assigned (not synced to netmri yet?)")
+                    logger.debug(f"Skipping {klass.__name__} \"{git_item['path']}\" because it doesn't have id assigned (not synced to netmri yet?)")
                     continue
                 git_objects[git_item["id"]] = git_item
 
@@ -123,12 +123,18 @@ class Bootstrapper:
                     logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" is outdated on netmri")
                     err_count += 1
 
-            # TODO: record error in the note and include it in push
-            # True if no errors were found, False otherwise
-            all_clear = (err_count == 0)
-            if all_clear:
-                logger.info("Repository and the server are in sync")
-            return all_clear
+        for class_subindex in self.repo.failed_objects.values():
+            for obj in class_subindex.values():
+                # TODO: notify the user if failed object has been updated after that sync
+                msg = f"{obj['path']} has had sync errors: {obj['error']}"
+                err_count += 1
+
+        # TODO: record error in the note and include it in push
+        # True if no errors were found, False otherwise
+        all_clear = (err_count == 0)
+        if all_clear:
+            logger.info("Repository and the server are in sync")
+        return all_clear
 
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will

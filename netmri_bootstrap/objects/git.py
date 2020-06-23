@@ -149,7 +149,7 @@ class Repo():
 
         self.git = self.repo.git
         # helper structure to speed up note lookups
-        self._notes_index = None
+        self.reset_object_index()
 
 
     @classmethod
@@ -232,31 +232,48 @@ class Repo():
         logger.debug(f"Changed: {changed}")
         return (added, deleted, changed)
 
-    def build_object_index(self):
-        if self._notes_index is None:
-            self._notes_index = {}
+    @property
+    def object_index(self):
+        if self._object_index is None:
+            logger.debug("building index from git notes")
+            self._object_index = {}
             for line in self.git.notes('list').splitlines():
-                note_target = line.split()[1]
-                note_obj = json.loads(self.git.notes('show', note_target))
+                # accessing note blob directly is much faster than running 'git notes show'
+                note_id, note_target = line.split()
+                note_blob = git.Blob(self.repo, binascii.a2b_hex(note_id))
+                note_content = note_blob.data_stream.read()
+                note_obj = json.loads(note_content)
                 note_class = note_obj["class"]
                 note_id = note_obj["id"]
-                if note_class not in self._notes_index:
-                    self._notes_index[note_class] = {}
-                if note_id in self._notes_index[note_class]:
-                    logger.warn(f"Found duplicates for {note_class} id {note_id}: {self._notes_index[note_class][note_id]['path']}")
-                self._notes_index[note_class][note_id] = note_obj
-        return self._notes_index
+                if note_class not in self._object_index:
+                    self._object_index[note_class] = {}
+                if note_id not in self._object_index[note_class]:
+                    self._object_index[note_class][note_id] = note_obj
+                else:
+                    logger.warn(f"Found duplicates for {note_class} id {note_id}: {self._object_index[note_class][note_id]['path']}")
+        return self._object_index
+
+    @property
+    def failed_objects(self):
+        if self._errors_index is None:
+            self._errors_index = {}
+            for klass in self.object_index.keys():
+                self._errors_index[klass] = {}
+                for note in self.object_index[klass].values():
+                    if note["error"]:
+                        self._errors_index[klass][note["id"]] = note
+        return self._errors_index
+
 
     def reset_object_index(self):
-        self._notes_index = None
+        self._object_index = None
+        self._errors_index = None
 
     def find_note_by_id(self, klass, id):
-        if self._notes_index is None:
-            self.build_object_index()
         # klass can be either a class or class name
         if (isinstance(klass, type)):
             klass = klass.__name__
-        class_subindex = self._notes_index.get(klass, {})
+        class_subindex = self.object_index.get(klass, {})
         return class_subindex.get(id, None)
 
 

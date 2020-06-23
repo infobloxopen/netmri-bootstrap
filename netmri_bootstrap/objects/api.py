@@ -3,6 +3,7 @@ import re
 import json
 import logging
 import importlib
+from requests import exceptions
 from netmri_bootstrap import config
 from lxml.builder import E
 import lxml.etree as etree
@@ -46,6 +47,8 @@ class ApiObject():
             self.id = metadata['id']
         if 'updated_at' in metadata:
             self.updated_at = metadata['updated_at']
+        if 'error' in metadata:
+            self.updated_at = metadata['error']
         for attr in self.api_attributes:
             # Don't replace existing attributes if we only got partial metadata
             # (can happen if we parse metadata block)
@@ -147,8 +150,8 @@ class ApiObject():
             logger.debug(f"Updating object attributes with API result {item_dict}")
             self.set_metadata(item_dict)
         except Exception as e:
-            self.error = e.message
-            logger.error(self.error)
+            self.error = self._parse_error(e)
+            logger.error(f"An error has occured while syncing {self.path}: {self.error}")
 
         self.save_note()
 
@@ -179,12 +182,34 @@ class ApiObject():
 
     # TODO: this must be moved to save_to_disk when it'll work with git blobs instead of files
     def save_note(self):
-        self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "class": self.__class__.__name__}
+        self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
 
     # NOTE: These methods SHOULD be overridden in subclasses
     def generate_path(self):
         return os.path.join(self.scripts_dir(), str(self.id))
 
+    @staticmethod
+    def _parse_error(e):
+        msg = str(e)
+        if isinstance(e, exceptions.RequestException):
+            msg = e.response.content
+            try:
+                # NetMRI returns errors in JSON
+                msg_dict = json.loads(msg)
+                message = msg_dict['message']
+                field_msgs = []
+                if 'fields' in msg_dict:
+                    for field, val in msg_dict['fields'].items():
+                        field_msg = field + ': ' + " ".join(val)
+                        field_msgs.append(field_msg)
+                if field_msgs:
+                    message = message + ': ' + ', '.join(field_msgs)
+                return message
+            except json.JSONDecodeError as e:
+                # pass
+                print(e)
+        # If error is not in json, return it as is
+        return msg
 
 class Script(ApiObject):
     api_broker = "Script"
