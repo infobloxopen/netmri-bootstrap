@@ -114,7 +114,8 @@ class Bootstrapper:
                 api_date = time.strptime(api_objects[id].updated_at, "%Y-%m-%d %H:%M:%S")
                 git_date = time.strptime(git_objects[id]["updated_at"], "%Y-%m-%d %H:%M:%S")
                 if git_date < api_date:
-                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" was changed outside of netmri-bootstrap")
+                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" (id: {id}) ({git_objects[id]['path']}) was changed outside of netmri-bootstrap")
+                    logger.debug(f"modification date on netmri: {api_objects[id].updated_at}, in git: {git_objects[id]['updated_at']}")
                     err_count += 1
 
                 # git_date may be newer than api_date after netmri was restored from an archive.
@@ -124,7 +125,10 @@ class Bootstrapper:
 
             # TODO: record error in the note and include it in push
             # True if no errors were found, False otherwise
-            return err_count == 0
+            all_clear = (err_count == 0)
+            if all_clear:
+                logger.info("Repository and the server are in sync")
+            return all_clear
 
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will

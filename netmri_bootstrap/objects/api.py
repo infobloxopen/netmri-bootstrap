@@ -34,6 +34,8 @@ class ApiObject():
         res = {}
         if self.id is not None:
             res['id'] = self.id
+        if self.updated_at is not None:
+            res['updated_at'] = self.updated_at
         for attr in self.api_attributes:
             res[attr] = getattr(self, attr)
         return res
@@ -42,6 +44,8 @@ class ApiObject():
         logger.debug(f"setting metadata for instance of {self.__class__.__name__} with {metadata}")
         if 'id' in metadata:
             self.id = metadata['id']
+        if 'updated_at' in metadata:
+            self.updated_at = metadata['updated_at']
         for attr in self.api_attributes:
             # Don't replace existing attributes if we only got partial metadata
             # (can happen if we parse metadata block)
@@ -136,6 +140,8 @@ class ApiObject():
         try:
             api_result = self._do_push_to_api()
             item_dict = {}
+            item_dict["id"] = api_result.id
+            item_dict["updated_at"] = api_result.updated_at
             for attr in self.api_attributes:
                 item_dict[attr] = getattr(api_result, attr, None)
             logger.debug(f"Updating object attributes with API result {item_dict}")
