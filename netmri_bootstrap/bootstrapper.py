@@ -54,9 +54,9 @@ class Bootstrapper:
             obj.save_note()
 
 
-    def update_netmri(self):
+    def update_netmri(self, retry_errors=False):
         added, deleted, changed = self.repo.detect_changes()
-        if len(added) == 0 and len(deleted) == 0 and len(changed) == 0:
+        if not retry_errors and len(added) == 0 and len(deleted) == 0 and len(changed) == 0:
             logger.info("No changes to push to server")
             return
 
@@ -74,6 +74,17 @@ class Bootstrapper:
             logger.debug(f"updating {blob.path} on netmri")
             script = api.ApiObject.from_blob(blob)
             script.push_to_api()
+
+        if retry_errors:
+            for class_subindex in self.repo.failed_objects.values():
+                for obj in class_subindex.values():
+                    blob = git.Blob.from_note(self.repo, obj)
+                    # Don't retry freshly failed objects
+                    if blob in added + deleted + changed:
+                        continue
+                    logger.debug(f"retrying sync of {blob.path}")
+                    script = api.ApiObject.from_blob(blob)
+                    script.push_to_api()
         self.repo.mark_bootstrap_sync()
 
 
@@ -127,9 +138,9 @@ class Bootstrapper:
             for obj in class_subindex.values():
                 # TODO: notify the user if failed object has been updated after that sync
                 msg = f"{obj['path']} has had sync errors: {obj['error']}"
+                logger.info(msg)
                 err_count += 1
 
-        # TODO: record error in the note and include it in push
         # True if no errors were found, False otherwise
         all_clear = (err_count == 0)
         if all_clear:

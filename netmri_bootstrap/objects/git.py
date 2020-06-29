@@ -4,6 +4,7 @@ import git
 import json
 import binascii
 import logging
+from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
 logger = logging.getLogger(__name__)
 
 # Notes in Git cannot exist without parent object (blob or commit). Therefore,
@@ -35,6 +36,7 @@ class _Note():
             self.content = json.loads(note_raw)
 
 
+    @check_dryrun
     def save(self):
         logger.debug(f"Saving git note for {self.parent.id}: {self.content}")
         self.repo.git.notes('add', self.parent.id, '-m', json.dumps(self.content), '-f')
@@ -70,12 +72,10 @@ class Blob():
             return False
 
     @classmethod
-    def get_blob_by_path(klass):
-        pass
+    def from_note(klass, repo, note):
+        blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']), path=note['path'])
+        return klass(repo, blob)
 
-    @classmethod
-    def get_blob_by_sha(klass):
-        pass
 
     @property
     def note(self):
@@ -166,11 +166,13 @@ class Repo():
         return klass(repo_path)
 
     # TODO: make this work on bare repo
+    @check_dryrun
     def stage_file(self, path):
         logger.debug(f"Adding file {path} for commit")
         rv = self.repo.index.add(path)
         return Blob(self, rv[0].to_blob(self))
 
+    @check_dryrun
     def commit(self, message="Committed by netmri-bootstrap"):
         logger.debug("Committing staged changes to the repo")
         return self.repo.index.commit(message)
@@ -185,6 +187,7 @@ class Repo():
 
 
     # Creates tag "synced_to_netmri" that points to last commit successfully pushed to server.
+    @check_dryrun
     def mark_bootstrap_sync(self, commit=None, force=True):
         if commit is None:
             commit = self.repo.heads[self.branch].commit

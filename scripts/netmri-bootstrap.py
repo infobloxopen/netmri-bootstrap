@@ -5,6 +5,7 @@ import argparse
 import logging
 
 from netmri_bootstrap.bootstrapper import Bootstrapper
+from netmri_bootstrap import dryrun
 
 def initialize_logging(args):
     loglevel = logging.INFO
@@ -43,7 +44,8 @@ def parse_cmdline_args():
 
     parser.add_argument("-q", help="Quiet logging. Can be repeated to suppress more messages", action='count', default=0)
     parser.add_argument("-v", help="Verbose logging. Can be repeated to increase verbosity", action='count', default=0)
-    parser.add_argument("-n", help="Dry run", action='store_true')
+    parser.add_argument("--retry-errors", help="Attempt to sync previously failed objects", action='store_true')
+    parser.add_argument("--dry-run", dest="dryrun", help="Preview changes that will be made to server. Works for push only", action='store_true')
     return parser.parse_args()
 
 
@@ -52,12 +54,17 @@ if __name__ == "__main__":
     initialize_logging(args)
 
     if args.command == "init":
+        if args.dryrun:
+            logger.error("init cannot work in dry run mode")
+            sys.exit(1)
         bs = Bootstrapper.init_empty_repo()
         bs.export_from_netmri()
     elif args.command == "push":
+        dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
-        bs.update_netmri()
+        bs.update_netmri(retry_errors=args.retry_errors)
     elif args.command == "check":
+        dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
         bs.check_netmri()
     else:

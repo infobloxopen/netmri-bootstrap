@@ -5,6 +5,7 @@ import logging
 import importlib
 from requests import exceptions
 from netmri_bootstrap import config
+from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
 from lxml.builder import E
 import lxml.etree as etree
 logger = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ class ApiObject():
         broker = self.get_broker()
         logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
         logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
-        broker.destroy(id=self.id)
+        check_dryrun(broker.destroy)(id=self.id)
 
     def push_to_api(self):
         # TODO: We need to check that the object is in clean state
@@ -142,6 +143,9 @@ class ApiObject():
             logger.info(f"{self.path} -> {self.api_broker} \"{self.name}\" (id {self.id})")
         try:
             api_result = self._do_push_to_api()
+            if api_result is None and get_dryrun:
+                # No point in updating the object if dry run is enabled
+                return None
             item_dict = {}
             item_dict["id"] = api_result.id
             item_dict["updated_at"] = api_result.updated_at
@@ -157,6 +161,7 @@ class ApiObject():
 
     # _do_push_to_api must be defined in a subclass and must return XXXRemote object.
     # In some cases, this method must call self.get_broker().show(id=received_id) to obtain necessary metadata
+    @check_dryrun
     def _do_push_to_api(self):
         raise NotImplementedError("This method must be defined in a subclass")
 
@@ -171,6 +176,7 @@ class ApiObject():
     # TODO: must create git blobs instead of files so it'll work on bare repo
     # See https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
     # also, git notes should be added here
+    @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
@@ -181,6 +187,7 @@ class ApiObject():
         return fn
 
     # TODO: this must be moved to save_to_disk when it'll work with git blobs instead of files
+    @check_dryrun
     def save_note(self):
         self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
 
@@ -205,9 +212,10 @@ class ApiObject():
                 if field_msgs:
                     message = message + ': ' + ', '.join(field_msgs)
                 return message
-            except json.JSONDecodeError as e:
-                # pass
-                print(e)
+            except json.JSONDecodeError:
+                pass
+            except KeyError:
+                pass
         # If error is not in json, return it as is
         return msg
 
@@ -238,6 +246,7 @@ class Script(ApiObject):
         res = broker.export_file(id=self.id)
         self._content = res["content"]
 
+    @check_dryrun
     def _do_push_to_api(self):
         broker = self.get_broker()
         if self.id is None:
@@ -246,6 +255,7 @@ class Script(ApiObject):
             rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
         return rv
 
+    @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.get_subdir()), exist_ok=True)
@@ -352,6 +362,7 @@ class ConfigList(ApiObject):
             raise 
         self._content = res["content"]
 
+    @check_dryrun
     def _do_push_to_api(self):
         # Import of config lists is very, very broken
         broker = self.get_broker()
@@ -365,6 +376,7 @@ class ConfigList(ApiObject):
             raise ValueError(f"Sync of ConfigList {self.path} failed: {result['message']}")
         return self.get_broker().show(id=result["id"])
 
+    @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
@@ -426,6 +438,7 @@ class ConfigTemplate(ApiObject):
         res = self.get_broker().export(id=self.id)
         self._content = res["content"]
 
+    @check_dryrun
     def _do_push_to_api(self):
         broker = self.get_broker()
         api_args = self.get_metadata()
@@ -520,6 +533,7 @@ class XmlObject(ApiObject):
         name = re.sub("[^A-Za-z0-9_\-.]", "_", name)
         return os.path.join(self.scripts_dir(), name)
 
+    @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
         os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
@@ -582,6 +596,7 @@ class PolicyRule(XmlObject):
     def __init__(self, **kwargs):
         super(PolicyRule, self).__init__(**kwargs)
 
+    @check_dryrun
     def _do_push_to_api(self):
         broker = self.get_broker()
         update_dict = self.get_metadata()
@@ -654,6 +669,7 @@ class Policy(XmlObject):
         for rule in self._content.iter(tag="policy-rule-reference"):
             self.rules.append(rule.text)
 
+    @check_dryrun
     def _do_push_to_api(self):
         broker = self.get_broker()
         update_dict = self.get_metadata()
