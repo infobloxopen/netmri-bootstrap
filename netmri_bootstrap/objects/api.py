@@ -117,7 +117,7 @@ class ApiObject():
         return res
 
     def load_content_from_api(self):
-        raise NotImplementedError("This method must be defined in a subclass")
+        raise NotImplementedError(f"Class {self.__class__} must implement load_content_from_api")
 
     def load_content_from_repo(self):
         logger.debug(f"loading content for {self.api_broker} from {self._blob.path}")
@@ -153,6 +153,7 @@ class ApiObject():
                 item_dict[attr] = getattr(api_result, attr, None)
             logger.debug(f"Updating object attributes with API result {item_dict}")
             self.set_metadata(item_dict)
+            self.error = None
         except Exception as e:
             self.error = self._parse_error(e)
             logger.error(f"An error has occured while syncing {self.path}: {self.error}")
@@ -163,11 +164,11 @@ class ApiObject():
     # In some cases, this method must call self.get_broker().show(id=received_id) to obtain necessary metadata
     @check_dryrun
     def _do_push_to_api(self):
-        raise NotImplementedError("This method must be defined in a subclass")
+        raise NotImplementedError(f"Class {self.__class__} must implement _do_push_to_api")
 
     # This must be overridden in a subclass
     def set_metadata_from_content(self):
-        raise NotImplementedError("This method must be defined in a subclass")
+        raise NotImplementedError(f"Class {self.__class__} must implement set_metadata_from_content")
 
     def get_full_path(self):
         # TODO: find path by broker and id if no path is provided
@@ -191,9 +192,20 @@ class ApiObject():
     def save_note(self):
         self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
 
-    # NOTE: These methods SHOULD be overridden in subclasses
+    # Some objects, like scripts, have subcategories. These categories are represented as subdirs
+    def get_subpath(self):
+        return ''
+
+    def get_extension(self):
+        return ''
+
     def generate_path(self):
-        return os.path.join(self.scripts_dir(), str(self.id))
+        # Name must be unique, so it is safe
+        filename = getattr(self, self.secondary_keys[0], str(self.id))
+        filename = re.sub("[^A-Za-z0-9_\-.]", "_", filename)
+        extension = self.get_extension()
+        filename = '.'.join([filename, extension])
+        return os.path.join(self.scripts_dir(), self.get_subpath(), filename)
 
     @staticmethod
     def _parse_error(e):
@@ -219,26 +231,102 @@ class ApiObject():
         # If error is not in json, return it as is
         return msg
 
-class Script(ApiObject):
+class ScriptLike(ApiObject):
+    comment_to_props = {}
+    """
+    Script-like objects contain their metadata in commented block in the beginning of file.
+    Presently, this includes scripts, script modules, config lists and config templates.
+    """
+    def __init__(self, **kwargs):
+        super(ScriptLike, self).__init__(**kwargs)
+    
+    def _get_metadata_block_regex(self):
+        raise NotImplementedError(f"Class {self.__class__} must implement _get_metadata_block_regex")
+
+    def set_metadata_from_content(self):
+        regex = re.compile(self._get_metadata_block_regex())
+        metadata = {}
+        for line in self._content.splitlines():
+            m = regex.match(line)
+            if m:
+                key = m.group(1)
+                val = m.group(2)
+                prop = self.comment_to_props[key]
+                # We use first occurence of metadata entry, if there is more than one of it in the file
+                if prop not in metadata:
+                    metadata[prop] = val
+
+        # These values are mandatory. Fill them from path, for the lack of better alternative
+        if 'name' not in metadata:
+            metadata['name'] = os.path.basename(self.path)
+
+        logger.debug(f"setting object metadata from {metadata}")
+        self.set_metadata(metadata)
+
+    def build_metadata_block(self):
+        res = []
+        res.append('#' * 79)
+        for comment, prop in self.comment_to_props.items():
+            val = getattr(self, prop, '')
+            res.append(f"# {comment}: {val}")
+        res.append('#' * 79)
+        res.append('')
+        return os.linesep.join(res)
+
+    @check_dryrun
+    def save_to_disk(self):
+        conf = config.get_config()
+        fn = os.path.join(conf.scripts_root, self.generate_path())
+        os.makedirs(os.path.dirname(fn), exist_ok=True)
+        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
+        with open(fn, 'w') as f:
+            f.write(self.build_metadata_block())
+            f.write(self._content)
+        return fn
+
+    def _strip_metadata_block(self):
+        lines_filtered = []
+        metadata_boundary_regex = re.compile(r'^#{10,}$')
+        metadata_block_started = False
+        metadata_block_ended = False
+        for line in self._content.splitlines():
+            if metadata_block_ended:
+                lines_filtered.append(line)
+            elif not metadata_block_started:
+                if metadata_boundary_regex.match(line):
+                    metadata_block_started = True
+                else:
+                    lines_filtered.append(line)
+            elif metadata_block_started:
+                if metadata_boundary_regex.match(line):
+                    metadata_block_ended = True
+        return "\n".join(lines_filtered)
+
+
+
+class Script(ScriptLike):
     api_broker = "Script"
     api_attributes = ('name', 'description', 'risk_level', 'language', 'category')
-    secondary_keys = ("name")
+    secondary_keys = ("name",)
+    comment_to_props = {
+            None: "name",
+            "Description": "description",
+            "Level": "level",
+            "Category": "category",
+            "Language": "language"
+        }
 
     def __init__(self, **kwargs):
         super(Script, self).__init__(**kwargs)
 
-    def generate_path(self):
-        # Name must be unique, so it is safe
-        name = re.sub("[^A-Za-z0-9_\-.]", "_", self.name)
-        extension = self.get_extension(self.language)
-        filename = '.'.join([name, extension])
-        return os.path.join(self.get_subdir(), filename)
+    def get_subpath(self):
+        subpath = self.category
+        if subpath == 'Uncategorized' or subpath is None:
+            subpath = ''
+        return subpath
 
-    def get_subdir(self):
-        subdir = self.category
-        if subdir == 'Uncategorized':
-            subdir = ''
-        return os.path.join(self.scripts_dir(), subdir)
+    def _get_metadata_block_regex(self):
+        return r'^#*\s*Script-?(Description|Level|Category|Language)?:\s+(.*)$'
 
     def load_content_from_api(self):
         broker = self.get_broker()
@@ -254,17 +342,6 @@ class Script(ApiObject):
         else:
             rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
         return rv
-
-    @check_dryrun
-    def save_to_disk(self):
-        conf = config.get_config()
-        os.makedirs(os.path.join(conf.scripts_root, self.get_subdir()), exist_ok=True)
-        fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
-        with open(fn, 'w') as f:
-            f.write(self.build_metadata_block())
-            f.write(self._content)
-        return fn
 
     def build_metadata_block(self):
         res = []
@@ -284,45 +361,21 @@ class Script(ApiObject):
         return os.linesep.join(res)
 
     def set_metadata_from_content(self):
-        regex = re.compile(r'^#*\s*Script-?(Description|Level|Category|Language)?:\s+(.*)$')
-        metadata = {}
-        for line in self._content.splitlines():
-            m = regex.match(line)
-            if m:
-                key = m.group(1)
-                val = m.group(2)
-                # We use first occurence of metadata entry, if there is more than one of it in the file
-                if key is None and 'name' not in metadata:
-                    metadata["name"] = val
-                elif key == 'Description' and 'description' not in metadata:
-                    metadata["description"] = val
-                elif key == 'Level' and 'risk_level' not in metadata:
-                    metadata['risk_level'] = val
-                elif key == 'Category' and 'category' not in metadata:
-                    metadata['category'] = val
-                elif key == 'Language' and 'language' not in metadata:
-                    metadata['language'] = val
+        super(Script, self).set_metadata_from_content()
+        if getattr(self, 'language', '') == '':
+            self.language = self.detect_language(self.path)
 
-        # These values are mandatory. Fill them from path, for the lack of better alternative
-        if 'language' not in metadata:
-            metadata['language'] = self.detect_language(self.path)
-        if 'name' not in metadata:
-            metadata['name'] = os.path.basename(self.path)
-
-        logger.debug(f"setting object metadata from {metadata}")
-        self.set_metadata(metadata)
-
-    @staticmethod
-    def get_extension(lang):
-        if lang == 'CCS':
+    def get_extension(self):
+        lang = self.language.lower()
+        if lang == 'ccs':
             return 'ccs'
-        elif lang == 'Perl':
+        elif lang == 'perl':
             return 'pl'
-        elif lang == 'Python':
+        elif lang == 'python':
             return 'py'
         else:
-            # TODO: warn about unknown language
-            return lang.lower()
+            logger.warn(f"{self.path} is written in unknown language {self.lang}")
+            return lang
 
     @staticmethod
     def detect_language(filename):
@@ -338,20 +391,78 @@ class Script(ApiObject):
             raise ValueError(f"Cannot determine language for {filename}")
 
 
+class ScriptModule(ScriptLike):
+    api_broker = "ScriptModule"
+    api_attributes = ('name', 'category', 'description', 'language')
+    secondary_keys = ("name",)
+    comment_to_props = {
+            "Export of Script Module": "name",
+            "Language": "language",
+            "Category": "category",
+            "Description": "description"
+        }
 
-class ConfigList(ApiObject):
+    def __init__(self, **kwargs):
+        super(ScriptModule, self).__init__(**kwargs)
+
+    def _get_metadata_block_regex(self):
+        return r'^#*\s*(Export of Script Module|Description|Category|Language)?:\s+(.*)$'
+
+    def load_content_from_api(self):
+        broker = self.get_broker()
+        logger.debug(f"downloading content for {self.api_broker} id {self.id}")
+        res = broker.export_file(id=self.id)
+        self._content = res["content"]
+
+    @check_dryrun
+    def _do_push_to_api(self):
+        broker = self.get_broker()
+        content = self._strip_metadata_block()
+        if self.id is None:
+            rv = broker.create(name=self.name, script_source=content, language=self.language, category=self.category, description=self.description)
+        else:
+            rv = broker.update(id=self.id, name=self.name, script_source=content, language=self.language, category=self.category, description=self.description, overwrite_ind=1)
+        return rv['script_module']
+
+    def get_extension(self):
+        lang = self.language.lower()
+        if lang == 'perl':
+            return 'pm'
+        elif lang == 'python':
+            return 'py'
+        else:
+            logger.warn(f"{self.path} is written in unknown language {self.lang}")
+            return lang
+
+    @staticmethod
+    def detect_language(filename):
+        extension = filename.split('.')[-1].lower()
+
+        if extension == 'pm':
+            return 'Perl'
+        elif extension == 'py':
+            return 'Python'
+        else:
+            raise ValueError(f"Cannot determine language for {filename}")
+
+
+class ConfigList(ScriptLike):
     api_broker = "ConfigList"
     api_attributes = ("name", "description")
-    secondary_keys = ("name")
+    secondary_keys = ("name",)
+    comment_to_props = {
+            "Name": "name",
+            "Description": "description"
+        }
 
     def __init__(self, **kwargs):
         super(ConfigList, self).__init__(**kwargs)
 
-    def generate_path(self):
-        # Name must be unique, so it is safe
-        name = f"{self.name}.csv"
-        name = re.sub("[^A-Za-z0-9_\-.]", "_", name)
-        return os.path.join(self.scripts_dir(), name)
+    def _get_metadata_block_regex(self):
+        return r'^#*\s*(Name|Description)?:\s+(.*)$'
+
+    def get_extension(self):
+        return 'csv'
 
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
@@ -387,51 +498,21 @@ class ConfigList(ApiObject):
             f.write(self._content)
         return fn
 
+    # Metadata block is already present in exported file. No need to duplicate it
     def build_metadata_block(self):
-        res = []
-        res.append('#' * 36)
-        res.append(f"# Name: {self.name}")
-        res.append(f"# Description: {self.description}")
-        res.append('#' * 36)
-        res.append('')
-        return os.linesep.join(res)
+        return ''
 
 
-    def set_metadata_from_content(self):
-        regex = re.compile(r'^#*\s*(Name|Description)?:\s+(.*)$')
-        metadata = {}
-        for line in self._content.splitlines():
-            m = regex.match(line)
-            if m:
-                key = m.group(1)
-                val = m.group(2)
-                # We use first occurence of metadata entry, if there is more than one of it in the file
-                if key == "Name" and 'name' not in metadata:
-                    metadata["name"] = val
-                elif key == 'Description' and 'description' not in metadata:
-                    metadata["description"] = val
-
-        # These values are mandatory. Fill them from path, for the lack of better alternative
-        if 'name' not in metadata:
-            metadata['name'] = os.path.basename(self.path)
-
-        logger.debug(f"setting object metadata from {metadata}")
-        self.set_metadata(metadata)
-
-
-class ConfigTemplate(ApiObject):
+class ConfigTemplate(ScriptLike):
     api_broker = "ConfigTemplate"
     api_attributes = ('name', 'description', 'device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text')
-    secondary_keys = ("name")
+    secondary_keys = ("name",)
 
     def __init__(self, **kwargs):
         super(ConfigTemplate, self).__init__(**kwargs)
 
-    def generate_path(self):
-        # Name must be unique, so it is safe
-        name = f"{self.name}.txt"
-        name = re.sub("[^A-Za-z0-9_\-.]", "_", name)
-        return os.path.join(self.scripts_dir(), name)
+    def get_extension(self):
+        return 'txt'
 
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
@@ -454,25 +535,6 @@ class ConfigTemplate(ApiObject):
             res = broker.update(**api_args)
 
         return res["config_template"]
-
-    def _strip_metadata_block(self):
-        lines_filtered = []
-        metadata_boundary_regex = re.compile(r'^#{10,}$')
-        metadata_block_started = False
-        metadata_block_ended = False
-        for line in self._content.splitlines():
-            if metadata_block_ended:
-                lines_filtered.append(line)
-            elif not metadata_block_started:
-                if metadata_boundary_regex.match(line):
-                    metadata_block_started = True
-                else:
-                    lines_filtered.append(line)
-            elif metadata_block_started:
-                if metadata_boundary_regex.match(line):
-                    metadata_block_ended = True
-        return "\n".join(lines_filtered)
-
 
     def set_metadata_from_content(self):
         # There can be several variables. Each of them is defined on its own line pefixed with "## Template-Variable: " tag
@@ -527,11 +589,8 @@ class XmlObject(ApiObject):
     def __init__(self, **kwargs):
         super(XmlObject, self).__init__(**kwargs)
 
-    def generate_path(self):
-        # Name must be unique, so it is safe
-        name = f"{self.short_name}.xml"
-        name = re.sub("[^A-Za-z0-9_\-.]", "_", name)
-        return os.path.join(self.scripts_dir(), name)
+    def get_extension(self):
+        return 'xml'
 
     @check_dryrun
     def save_to_disk(self):
@@ -584,7 +643,7 @@ class XmlObject(ApiObject):
 class PolicyRule(XmlObject):
     api_broker = "PolicyRule"
     api_attributes = ('name', 'description', 'author', 'set_filter', 'rule_logic', 'severity', 'action_after_exec', 'remediation', 'short_name', 'read_only')
-    secondary_keys = ("name", "short_name")
+    secondary_keys = ("short_name", "name")
 
     root_element = "policy-rule"
     api_attrs = ["action-after-exec", "author", "created-at", "description", "name", "read-only", "remediation", "severity", "short-name", "updated-at", "rule-logic", "script-filter"]
@@ -635,7 +694,7 @@ class Policy(XmlObject):
     depends_on=["PolicyRule"]
     api_broker = "Policy"
     api_attributes = ('name', 'description', 'author', 'set_filter', 'severity', 'schedule_mode', 'short_name', 'read_only')
-    secondary_keys = ("name", "short_name")
+    secondary_keys = ("short_name", "name")
 
     root_element = "policy"
     api_attrs = ["author", "created-at", "description", "name", "read-only", "schedule-mode", "short-name", "updated-at", "set-filter"]

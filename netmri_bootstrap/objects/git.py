@@ -39,10 +39,10 @@ class _Note():
     @check_dryrun
     def save(self):
         logger.debug(f"Saving git note for {self.parent.id}: {self.content}")
-        self.repo.git.notes('add', self.parent.id, '-m', json.dumps(self.content), '-f')
         old_note = self.parent.find_note_on_ancestors(skip_self=True)
         if old_note is not None:
             old_note.clear()
+        self.repo.git.notes('add', self.parent.id, '-m', json.dumps(self.content), '-f')
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 

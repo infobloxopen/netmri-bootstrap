@@ -6,7 +6,7 @@ from netmri_bootstrap.objects import git
 from netmri_bootstrap.objects import api
 logger = logging.getLogger(__name__)
 # TODO: get classes from config and order them according to their dependencies
-object_classes = [api.Script, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]
+object_classes = [api.Script, api.ScriptModule, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]
 
 class Bootstrapper:
     def __init__(self, repo=None):
@@ -112,7 +112,7 @@ class Bootstrapper:
 
             err_count = 0
             for obj_id in api_objects_set - git_objects_set:
-                obj = api_objects["obj_id"]
+                obj = api_objects[obj_id]
                 logger.warn(f"{klass.__name__} \"{obj.name}\" was added outside of netmri-bootstrap")
                 err_count += 1
 
