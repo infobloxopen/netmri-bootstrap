@@ -4,6 +4,7 @@ import git
 import json
 import binascii
 import logging
+from netmri_bootstrap import config
 from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,13 @@ class Blob():
         blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']), path=note['path'])
         return klass(repo, blob)
 
+    @classmethod
+    def from_path(klass, repo, path, commit=None):
+        # Use latest commit of current branch unless otherwise specified
+        if commit is None:
+            commit = repo.repo.head.commit
+        blob = commit.tree[path]
+        return klass(repo, blob)
 
     @property
     def note(self):
@@ -279,4 +287,29 @@ class Repo():
         class_subindex = self.object_index.get(klass, {})
         return class_subindex.get(id, None)
 
+    def get_path_in_repo(self, path):
+        """
+        Path can be in one of these forms:
+        Absolute path (/opt/netmri_bootstrap/scripts/script.py)
+        Path relative to current directory (./netmri_bootstrap/scripts/script.py)
+        Path relative to repo root (scripts/script.py)
+        This method converts them all into path relative to the repo.
+        """
+        absolute_path = os.path.abspath(path)
+        absolute_repo_root = os.path.abspath(self.path)
+        if os.path.commonpath([absolute_path, absolute_repo_root]) != absolute_repo_root:
+            if os.path.isabs(path):
+                raise ValueError(f"{path} is outside of repository {self.path}")
+            else:
+                # Simplify constructions like a//b/../c (becomes a/c)
+                normalized_path =  os.path.normpath(path)
+                for object_subpath in config.get_config().class_paths.values():
+                    if normalized_path.startswith(object_subpath):
+                        logger.debug(f"Assuming {path} is inside the repo")
+                        return normalized_path
+                raise ValueError(f"Relative path {path} is invalid")
+        else:
+            relative_path = os.path.relpath(absolute_path, start=absolute_repo_root)
+            logger.debug(f"Translated {path} to {relative_path}")
+            return relative_path
 

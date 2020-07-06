@@ -33,19 +33,27 @@ def initialize_logging(args):
 
 def parse_cmdline_args():
     parser = argparse.ArgumentParser(description="netmri-bootstrap")
-    commands = ["init", "push", "check"]
-    commands_help = """
-    Can be one of three operations:
-    init: create empty repository and fill it with data from server
-    push: update scripts in the repo from server
-    check: verify that repo and the server are in sync
-    """
-    parser.add_argument("command", help=commands_help, choices=commands)
 
+    # Global arguments
     parser.add_argument("-q", help="Quiet logging. Can be repeated to suppress more messages", action='count', default=0)
     parser.add_argument("-v", help="Verbose logging. Can be repeated to increase verbosity", action='count', default=0)
-    parser.add_argument("--retry-errors", help="Attempt to sync previously failed objects", action='store_true')
-    parser.add_argument("--dry-run", dest="dryrun", help="Preview changes that will be made to server. Works for push only", action='store_true')
+
+    # arguments for subcommands
+    subparsers = parser.add_subparsers(help="Possible subcommands", dest="command")
+
+    parser_init = subparsers.add_parser("init", help="Create empty repository and fill it with data from server")
+
+    parser_check = subparsers.add_parser("check", help="Verify that repo and the server are in sync")
+
+    parser_push = subparsers.add_parser("push", help="update objects on server from the repo ")
+    parser_push.add_argument("--retry-errors", help="Attempt to sync previously failed objects", action='store_true')
+    parser_push.add_argument("--dry-run", dest="dryrun", help="Preview changes that will be made to server", action='store_true')
+    parser_push.add_argument("paths", type=str, help="Paths to sync", nargs='*')
+
+    parser_cat = subparsers.add_parser("cat", help="Show object contents in repo or on server")
+    parser_cat.add_argument("--api", dest="api", help="Get object content from server", action='store_true')
+    parser_cat.add_argument("path", type=str, help="Path to the object")
+
     return parser.parse_args()
 
 
@@ -62,11 +70,21 @@ if __name__ == "__main__":
     elif args.command == "push":
         dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
-        bs.update_netmri(retry_errors=args.retry_errors)
+        if len(args.paths) == 0:
+            bs.update_netmri(retry_errors=args.retry_errors)
+        else:
+            bs.force_push(args.paths)
     elif args.command == "check":
         dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
         bs.check_netmri()
+    elif args.command == "check":
+        dryrun.set_dryrun(args.dryrun)
+        bs = Bootstrapper()
+        bs.check_netmri()
+    elif args.command == "cat":
+        bs = Bootstrapper()
+        bs.cat_file(args.path, from_api=args.api)
     else:
         # We don't expect to get here because of argparse
         pass

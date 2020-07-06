@@ -87,6 +87,13 @@ class Bootstrapper:
                     script.push_to_api()
         self.repo.mark_bootstrap_sync()
 
+    def force_push(self, paths):
+        for path in paths:
+            repo_path = self.repo.get_path_in_repo(path)
+            blob = git.Blob.from_path(self.repo, repo_path)
+            obj = api.ApiObject.from_blob(blob)
+            obj.push_to_api()
+
 
     # Make sure that scripts weren't changed outside of netmri-bootstrap
     def check_netmri(self):
@@ -146,6 +153,17 @@ class Bootstrapper:
         if all_clear:
             logger.info("Repository and the server are in sync")
         return all_clear
+
+    def cat_file(self, path, from_api=False):
+        repo_path = self.repo.get_path_in_repo(path)
+        blob = git.Blob.from_path(self.repo, repo_path)
+        obj = api.ApiObject.from_blob(blob)
+        if from_api:
+            if obj.id is None:
+                logger.error(f"Cannot fetch content for {obj.path} from server. Object hasn't been synced yet?")
+                return
+            obj.load_content_from_api()
+        print(obj._content)
 
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will
