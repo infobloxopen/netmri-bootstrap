@@ -47,6 +47,7 @@ class _Note():
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 
+    @check_dryrun
     def clear(self):
         self.content = None
         logger.debug(f"Deleting git note for {self.parent.id}")

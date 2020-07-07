@@ -207,6 +207,14 @@ class ApiObject():
         filename = '.'.join([filename, extension])
         return os.path.join(self.scripts_dir(), self.get_subpath(), filename)
 
+    def find_by_secondary_keys(self):
+        args = {}
+        for key in self.secondary_keys:
+            args[f"op_{key}"] = "="
+            args[f"val_c_{key}"] = getattr(self, key)
+        logger.debug(f"Executing {self.api_broker}.find with {args}")
+        return self.broker.find(**args)
+
     @staticmethod
     def _parse_error(e):
         msg = str(e)

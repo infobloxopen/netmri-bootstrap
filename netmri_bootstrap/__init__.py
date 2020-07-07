@@ -165,6 +165,32 @@ class Bootstrapper:
             obj.load_content_from_api()
         print(obj._content)
 
+    def relink(self, path):
+        repo_path = self.repo.get_path_in_repo(path)
+        blob = git.Blob.from_path(self.repo, repo_path)
+        obj = api.ApiObject.from_blob(blob)
+        res = obj.find_by_secondary_keys()
+        if len(res) == 0:
+            if obj.id is None:
+                logger.info(f"{path} wasn't found on server")
+            else:
+                logger.info(f"{path} wasn't found on server. Changing id of {obj.path} from {obj.id} to None")
+                obj.id = None
+                obj.save_note()
+        elif len(res) == 1:
+            remote = res[0]
+            if remote.id == obj.id:
+                logger.info(f"{path} already has correct id on server: {remote.id}")
+                return
+            else:
+                logger.info(f"Changing id of {obj.path} from {obj.id} to {remote.id}")
+                obj.id = remote.id
+                obj.save_note()
+        else:
+            duplicates = [remote.id for remote in res]
+            raise ValueError(f"Found duplicates of {obj.path}: {','.join(duplicates)}. This should not happen.")
+        
+
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will
     # lead to loss of data on netmri side that would be hard to remediate

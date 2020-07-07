@@ -4,7 +4,7 @@ import sys
 import argparse
 import logging
 
-from netmri_bootstrap.bootstrapper import Bootstrapper
+from netmri_bootstrap import Bootstrapper
 from netmri_bootstrap import dryrun
 
 def initialize_logging(args):
@@ -54,6 +54,10 @@ def parse_cmdline_args():
     parser_cat.add_argument("--api", dest="api", help="Get object content from server", action='store_true')
     parser_cat.add_argument("path", type=str, help="Path to the object")
 
+    parser_relink = subparsers.add_parser("sync_id", help="Get id from server based on secondary key (usually name)")
+    parser_relink.add_argument("--dry-run", dest="dryrun", help="Don't make changes in the repo", action='store_true')
+    parser_relink.add_argument("path", type=str, help="Path to the object")
+
     return parser.parse_args()
 
 
@@ -62,9 +66,6 @@ if __name__ == "__main__":
     initialize_logging(args)
 
     if args.command == "init":
-        if args.dryrun:
-            logger.error("init cannot work in dry run mode")
-            sys.exit(1)
         bs = Bootstrapper.init_empty_repo()
         bs.export_from_netmri()
     elif args.command == "push":
@@ -85,6 +86,10 @@ if __name__ == "__main__":
     elif args.command == "cat":
         bs = Bootstrapper()
         bs.cat_file(args.path, from_api=args.api)
+    elif args.command == "sync_id":
+        dryrun.set_dryrun(args.dryrun)
+        bs = Bootstrapper()
+        bs.relink(args.path)
     else:
         # We don't expect to get here because of argparse
         pass
