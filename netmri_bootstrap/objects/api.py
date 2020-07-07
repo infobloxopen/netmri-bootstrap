@@ -176,7 +176,6 @@ class ApiObject():
 
     # TODO: must create git blobs instead of files so it'll work on bare repo
     # See https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
-    # also, git notes should be added here
     @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
@@ -187,10 +186,12 @@ class ApiObject():
             f.write(self._content)
         return fn
 
-    # TODO: this must be moved to save_to_disk when it'll work with git blobs instead of files
     @check_dryrun
     def save_note(self):
-        self._blob.note = {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
+        self._blob.note = self.get_note()
+
+    def get_note(self):
+        return {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
 
     # Some objects, like scripts, have subcategories. These categories are represented as subdirs
     def get_subpath(self):

@@ -165,6 +165,13 @@ class Bootstrapper:
             obj.load_content_from_api()
         print(obj._content)
 
+    def show_metadata(self, path):
+        repo_path = self.repo.get_path_in_repo(path)
+        blob = git.Blob.from_path(self.repo, repo_path)
+        obj = api.ApiObject.from_blob(blob)
+        for key, value in obj.get_note().items():
+            print(f"{key}: {value}")
+
     def relink(self, path):
         repo_path = self.repo.get_path_in_repo(path)
         blob = git.Blob.from_path(self.repo, repo_path)

@@ -58,6 +58,9 @@ def parse_cmdline_args():
     parser_relink.add_argument("--dry-run", dest="dryrun", help="Don't make changes in the repo", action='store_true')
     parser_relink.add_argument("path", type=str, help="Path to the object")
 
+    parser_show = subparsers.add_parser("show_metadata", help="show metadata for the object")
+    parser_show.add_argument("path", type=str, help="Path to the object")
+
     return parser.parse_args()
 
 
@@ -86,6 +89,9 @@ if __name__ == "__main__":
     elif args.command == "cat":
         bs = Bootstrapper()
         bs.cat_file(args.path, from_api=args.api)
+    elif args.command == "show_metadata":
+        bs = Bootstrapper()
+        bs.show_metadata(args.path)
     elif args.command == "sync_id":
         dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
