@@ -201,12 +201,14 @@ class ApiObject():
         return ''
 
     def generate_path(self):
-        # Name must be unique, so it is safe
-        filename = getattr(self, self.secondary_keys[0], str(self.id))
-        filename = re.sub("[^A-Za-z0-9_\-.]", "_", filename)
-        extension = self.get_extension()
-        filename = '.'.join([filename, extension])
-        return os.path.join(self.scripts_dir(), self.get_subpath(), filename)
+        if self.path is None:
+            # Name must be unique, so it is safe
+            filename = getattr(self, self.secondary_keys[0], str(self.id))
+            filename = re.sub("[^A-Za-z0-9_\-.]", "_", filename)
+            extension = self.get_extension()
+            filename = '.'.join([filename, extension])
+            self.path = os.path.join(self.scripts_dir(), self.get_subpath(), filename)
+        return self.path
 
     def find_by_secondary_keys(self):
         args = {}

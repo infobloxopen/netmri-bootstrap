@@ -198,6 +198,39 @@ class Bootstrapper:
             raise ValueError(f"Found duplicates of {obj.path}: {','.join(duplicates)}. This should not happen.")
         
 
+    def fetch(self, path, id=None, overwrite=False):
+        repo_path = self.repo.get_path_in_repo(path)
+        if self.repo.path_exists(repo_path):
+            blob = git.Blob.from_path(self.repo, repo_path)
+            obj = api.ApiObject.from_blob(blob)
+
+            if id is None:
+                id = obj.id
+
+            if id != obj.id:
+                if overwrite:
+                    remote = obj.get_broker().show(id=id)
+                    obj = obj.from_api(remote)
+                    obj.path = path
+                else:
+                    raise ValueError(f"Cannot replace {path} without --overwrite")
+        else:
+            if id is None:
+                raise ValueError(f"Must supply id for {path} because it doesn't exist")
+            klass = api.ApiObject._get_subclass_by_path(repo_path)
+            remote = klass.get_broker().show(id=id)
+            obj = klass.from_api(remote)
+            obj.path = path
+
+        obj.load_content_from_api()
+        obj.save_to_disk()
+
+        obj._blob = self.repo.stage_file(obj.path)
+
+        logger.debug("Committing downloaded objects to repo")
+        self.repo.commit(message=f"Fetch of {path} by netmri-bootstrap")
+
+
     # Delete all scripts on netmri, then upload scripts from repo
     # While it looks simple on the surface, any failure in this process will
     # lead to loss of data on netmri side that would be hard to remediate

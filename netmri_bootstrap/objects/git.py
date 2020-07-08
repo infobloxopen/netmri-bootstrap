@@ -288,6 +288,14 @@ class Repo():
         class_subindex = self.object_index.get(klass, {})
         return class_subindex.get(id, None)
 
+    def path_exists(self, path, commit=None):
+        if commit is None:
+            commit = self.repo.heads[self.branch].commit
+        for item in commit.tree.traverse():
+            if item.path == path:
+                return True
+        return False
+
     def get_path_in_repo(self, path):
         """
         Path can be in one of these forms:

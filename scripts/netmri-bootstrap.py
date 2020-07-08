@@ -61,6 +61,11 @@ def parse_cmdline_args():
     parser_show = subparsers.add_parser("show_metadata", help="show metadata for the object")
     parser_show.add_argument("path", type=str, help="Path to the object")
 
+    parser_show = subparsers.add_parser("fetch", help="Get file from server and store it in the repository")
+    parser_show.add_argument("path", type=str, help="Path to the object. Every object must be in its class subdir (e.g. all scripts must be in scrpts/ directory)")
+    parser_show.add_argument("--id", type=int, help="Id. Optional for objects already in repo", default=None)
+    parser_show.add_argument("--overwrite", help="Allow overwriting of existing file, if file in repo has different id", action="store_true")
+
     return parser.parse_args()
 
 
@@ -96,6 +101,9 @@ if __name__ == "__main__":
         dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
         bs.relink(args.path)
+    elif args.command == "fetch":
+        bs = Bootstrapper()
+        bs.fetch(args.path, id=args.id, overwrite=args.overwrite)
     else:
         # We don't expect to get here because of argparse
         pass
