@@ -39,7 +39,7 @@ def parse_cmdline_args():
     parser.add_argument("-v", help="Verbose logging. Can be repeated to increase verbosity", action='count', default=0)
 
     # arguments for subcommands
-    subparsers = parser.add_subparsers(help="Possible subcommands", dest="command")
+    subparsers = parser.add_subparsers(help="Possible subcommands", dest="command", required=True)
 
     parser_init = subparsers.add_parser("init", help="Create empty repository and fill it with data from server")
 
