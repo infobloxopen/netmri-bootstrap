@@ -2,10 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 
 with open('README.rst') as readme_file:
@@ -30,9 +27,7 @@ setup(
     author="Ingmar Van Glabbeek",
     author_email='ingmar@infoblox.com',
     url='https://github.com/infobloxopen/netmri-bootstrap',
-    packages=[
-        'netmri_bootstrap',
-    ],
+    packages=find_packages(),
     scripts=['scripts/netmri-bootstrap.py'],
     package_dir={'netmri_bootstrap':
                  'netmri_bootstrap'},

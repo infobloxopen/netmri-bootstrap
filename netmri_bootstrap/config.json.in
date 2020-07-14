@@ -2,7 +2,7 @@
     "host": "127.0.0.1",
     "username": "username",
     "password": "password",
-    "scripts_root": "./bootstrap_repo",
+    "scripts_root": "/tmp/bootstrap_repo",
     "bootstrap_branch": "master",
     "skip_readonly_objects": true,
     "class_paths": {
