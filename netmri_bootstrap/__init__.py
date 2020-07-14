@@ -120,11 +120,11 @@ class Bootstrapper:
             err_count = 0
             for obj_id in api_objects_set - git_objects_set:
                 obj = api_objects[obj_id]
-                logger.warn(f"{klass.__name__} \"{obj.name}\" was added outside of netmri-bootstrap")
+                logger.warn(f"{klass.__name__} \"{obj.name}\" (id: {obj.id}) was added outside of netmri-bootstrap")
                 err_count += 1
 
             for git_id in git_objects_set - api_objects_set:
-                obj = git_objects["obj_id"]
+                obj = git_objects[git_id]
                 logger.warn(f"{klass.__name__} \"{obj['path']}\" was deleted outside of netmri-bootstrap")
                 err_count += 1
 

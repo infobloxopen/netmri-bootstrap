@@ -84,11 +84,6 @@ if __name__ == "__main__":
         else:
             bs.force_push(args.paths)
     elif args.command == "check":
-        dryrun.set_dryrun(args.dryrun)
-        bs = Bootstrapper()
-        bs.check_netmri()
-    elif args.command == "check":
-        dryrun.set_dryrun(args.dryrun)
         bs = Bootstrapper()
         bs.check_netmri()
     elif args.command == "cat":
