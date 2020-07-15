@@ -207,13 +207,12 @@ class Bootstrapper:
             if id is None:
                 id = obj.id
 
-            if id != obj.id:
-                if overwrite:
-                    remote = obj.get_broker().show(id=id)
-                    obj = obj.from_api(remote)
-                    obj.path = path
-                else:
-                    raise ValueError(f"Cannot replace {path} without --overwrite")
+            if id != obj.id and not overwrite:
+                raise ValueError(f"Cannot replace {path} without --overwrite")
+
+            remote = obj.get_broker().show(id=id)
+            obj = obj.from_api(remote)
+            obj.path = path
         else:
             if id is None:
                 raise ValueError(f"Must supply id for {path} because it doesn't exist")
