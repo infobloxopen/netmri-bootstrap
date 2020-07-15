@@ -96,7 +96,13 @@ class Bootstrapper:
 
 
     # Make sure that scripts weren't changed outside of netmri-bootstrap
-    def check_netmri(self):
+    def check_netmri(self, local_only=False):
+        err_count = 0
+        err_count += self._local_check()
+        # Skip long remote checks
+        if local_only:
+            return err_count
+
         for klass in object_classes:
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
@@ -117,7 +123,6 @@ class Bootstrapper:
             api_objects_set = set(api_objects.keys())
             git_objects_set = set(git_objects.keys())
 
-            err_count = 0
             for obj_id in api_objects_set - git_objects_set:
                 obj = api_objects[obj_id]
                 logger.warn(f"{klass.__name__} \"{obj.name}\" (id: {obj.id}) was added outside of netmri-bootstrap")
@@ -153,6 +158,20 @@ class Bootstrapper:
         if all_clear:
             logger.info("Repository and the server are in sync")
         return all_clear
+
+    # Checks that there are no untracked and uncommitted files
+    def _local_check(self):
+        err_count = 0
+        for path in self.repo.repo.untracked_files:
+            logger.warn(f"File {path} is untracked. This file will be ignored")
+            err_count += 1
+        for item in self.repo.repo.index.diff(None):
+            logger.warn(f"File {item.a_path} has been modified, but not committed. Changes will be ignored")
+            err_count += 1
+        for item in self.repo.repo.index.diff(self.repo.repo.head.commit):
+            logger.warn(f"File {item.a_path} has been staged for commit. Changes will be ignored")
+            err_count += 1
+        return err_count
 
     def cat_file(self, path, from_api=False):
         repo_path = self.repo.get_path_in_repo(path)

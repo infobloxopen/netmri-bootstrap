@@ -44,6 +44,7 @@ def parse_cmdline_args():
     parser_init = subparsers.add_parser("init", help="Create empty repository and fill it with data from server")
 
     parser_check = subparsers.add_parser("check", help="Verify that repo and the server are in sync")
+    parser_check.add_argument("--brief", help="Don't verify against server state", action='store_true')
 
     parser_push = subparsers.add_parser("push", help="update objects on server from the repo ")
     parser_push.add_argument("--retry-errors", help="Attempt to sync previously failed objects", action='store_true')
@@ -85,7 +86,7 @@ if __name__ == "__main__":
             bs.force_push(args.paths)
     elif args.command == "check":
         bs = Bootstrapper()
-        bs.check_netmri()
+        bs.check_netmri(local_only=args.brief)
     elif args.command == "cat":
         bs = Bootstrapper()
         bs.cat_file(args.path, from_api=args.api)
