@@ -1,9 +1,7 @@
 =============================================
 WARNING: DO NOT USE THIS ON PRODUCTION SYSTEM
 =============================================
-This code is in early stage of development. I wouldn't even call it a pre-alpha in its current state. Maybe a prototype. Probably, unfinished prototype.
-
-Nothing here is in its final form. Expect dramatic changes in program structure.
+This is an alpha develoment version. Things may change. Backwards compatibility may break. Bugs may surface at worst possible time
 
 ===============================
 README: NetMRI Bootstrap
