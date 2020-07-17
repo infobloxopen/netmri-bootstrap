@@ -128,6 +128,7 @@ class ApiObject():
         logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
         logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
         check_dryrun(broker.destroy)(id=self.id)
+        check_dryrun(self._blob.note.clear)()
 
     def push_to_api(self):
         # TODO: We need to check that the object is in clean state
