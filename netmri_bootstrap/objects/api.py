@@ -508,7 +508,7 @@ class ConfigList(ScriptLike):
         try:
             res = self.get_broker().export(id=self.id)
         except json.JSONDecodeError:
-            logger.error("You have hit a bug in netmri Python client. Please update it to at least [VERSION_UNAVAILABLE]")
+            logger.error("You have hit a bug in infoblox_netmri. Please update it to at least 3.6.0.0")
             raise 
         self._content = res["content"]
 
