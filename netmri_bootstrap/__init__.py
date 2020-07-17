@@ -5,8 +5,6 @@ from netmri_bootstrap import config
 from netmri_bootstrap.objects import git
 from netmri_bootstrap.objects import api
 logger = logging.getLogger(__name__)
-# TODO: get classes from config and order them according to their dependencies
-object_classes = [api.Script, api.ScriptModule, api.ConfigList, api.PolicyRule, api.Policy, api.ConfigTemplate]
 
 class Bootstrapper:
     def __init__(self, repo=None):
@@ -28,7 +26,7 @@ class Bootstrapper:
     def export_from_netmri(self):
         logger.debug(f"Downloading API items from NetMRI")
         saved_objs = []
-        for klass in object_classes:
+        for klass in self.get_object_classes():
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
             for item in broker.index():
@@ -103,7 +101,7 @@ class Bootstrapper:
         if local_only:
             return err_count
 
-        for klass in object_classes:
+        for klass in self.get_object_classes():
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
             api_objects = {}
@@ -254,3 +252,30 @@ class Bootstrapper:
     # lead to loss of data on netmri side that would be hard to remediate
     def full_resync(repo):
         pass
+
+    # Resolve class names from config into actual classes.
+    # Also, always return dependencies before dependent classes
+    @staticmethod
+    def get_object_classes(class_names=None):
+        if class_names is None:
+            conf = config.get_config()
+            classes = conf.class_paths.keys()
+        else:
+            classes = class_names
+
+        class_list = []
+        for class_name in classes:
+            klass = getattr(api, class_name)
+            class_list.extend(Bootstrapper.get_object_classes(class_names=klass.depends_on))
+            class_list.append(klass)
+
+        if class_names is None:
+            res = []
+            for klass in class_list:
+                if klass not in res:
+                    res.append(klass)
+            return res
+        else:
+            return class_list
+
+

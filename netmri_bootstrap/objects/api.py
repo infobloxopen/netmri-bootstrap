@@ -317,6 +317,7 @@ class ScriptLike(ApiObject):
 
 
 class Script(ScriptLike):
+    depends_on=()
     api_broker = "Script"
     api_attributes = ('name', 'description', 'risk_level', 'language', 'category')
     secondary_keys = ("name",)
@@ -432,6 +433,7 @@ class Script(ScriptLike):
 
 
 class ScriptModule(ScriptLike):
+    depends_on=()
     api_broker = "ScriptModule"
     api_attributes = ('name', 'category', 'description', 'language')
     secondary_keys = ("name",)
@@ -487,6 +489,7 @@ class ScriptModule(ScriptLike):
 
 
 class ConfigList(ScriptLike):
+    depends_on=()
     api_broker = "ConfigList"
     api_attributes = ("name", "description")
     secondary_keys = ("name",)
@@ -545,6 +548,7 @@ class ConfigList(ScriptLike):
 
 
 class ConfigTemplate(ScriptLike):
+    depends_on=()
     api_broker = "ConfigTemplate"
     api_attributes = ('name', 'description', 'device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text')
     secondary_keys = ("name",)
@@ -682,6 +686,7 @@ class XmlObject(ApiObject):
 
 
 class PolicyRule(XmlObject):
+    depends_on=()
     api_broker = "PolicyRule"
     api_attributes = ('name', 'description', 'author', 'set_filter', 'rule_logic', 'severity', 'action_after_exec', 'remediation', 'short_name', 'read_only')
     secondary_keys = ("short_name", "name")
@@ -732,7 +737,7 @@ class PolicyRule(XmlObject):
 
 class Policy(XmlObject):
     # We should sync policy rules before we sync policies that use them
-    depends_on=["PolicyRule"]
+    depends_on=("PolicyRule",)
     api_broker = "Policy"
     api_attributes = ('name', 'description', 'author', 'set_filter', 'severity', 'schedule_mode', 'short_name', 'read_only')
     secondary_keys = ("short_name", "name")
