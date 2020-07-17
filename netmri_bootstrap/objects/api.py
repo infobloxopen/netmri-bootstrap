@@ -322,7 +322,7 @@ class Script(ScriptLike):
     comment_to_props = {
             None: "name",
             "Description": "description",
-            "Level": "level",
+            "Level": "risk_level",
             "Category": "category",
             "Language": "language"
         }
@@ -343,7 +343,16 @@ class Script(ScriptLike):
         broker = self.get_broker()
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         res = broker.export_file(id=self.id)
-        self._content = res["content"]
+        # Some of the metadata will remain in imported file. Remove it here 
+        # to add it later in more controlled fashion
+        content_filtered = []
+        for line in res["content"].splitlines():
+            if line == f"## Script-Level: {self.risk_level}" \
+                    or line == f"## Script-Category: {self.category}" \
+                    or line == f"## Script-Language: {self.language}":
+                continue
+            content_filtered.append(line)
+        self._content = "\n".join(content_filtered)
 
     @check_dryrun
     def _do_push_to_api(self):
@@ -358,16 +367,19 @@ class Script(ScriptLike):
         res = []
         # It works this way. Don't ask me why.
         if self.language == 'CCS':
+            res.append(f"## Script-Level: {self.risk_level}")
+            res.append(f"## Script-Category: {self.category}")
+            res.append(f"## Script-Language: {self.language}")
             res.append(f"Script: {self.name}")
             res.append(f"Script-Description: {self.description}")
         else:
             res.append('# BEGIN-INTERNAL-SCRIPT-BLOCK')
+            res.append(f"### Script-Level: {self.risk_level}")
+            res.append(f"### Script-Category: {self.category}")
+            res.append(f"### Script-Language: {self.language}")
             res.append(f"# Script: {self.name}")
-            res.append(f"# Script-Description: {self.description}")
+            res.append(f"# Script-Description: {self._format_description(self.description)}")
             res.append('# END-INTERNAL-SCRIPT-BLOCK')
-        res.append(f"## Script-Level: {self.risk_level}")
-        res.append(f"## Script-Category: {self.category}")
-        res.append(f"## Script-Language: {self.language}")
         res.append('')
         return os.linesep.join(res)
 
@@ -400,6 +412,22 @@ class Script(ScriptLike):
             return 'Python'
         else:
             raise ValueError(f"Cannot determine language for {filename}")
+
+    def _format_description(self, value):
+        if value is None:
+            value = ""
+        first_line = True
+        result = []
+        for line in value.splitlines():
+            if first_line:
+                result.append(line)
+                first_line = False
+            else:
+                if self.language.lower() == 'ccs':
+                    result.append("    " + line)
+                else:
+                    result.append("#   " + line)
+        return "\n".join(result)
 
 
 class ScriptModule(ScriptLike):
