@@ -517,6 +517,7 @@ class ConfigList(ScriptLike):
     def _do_push_to_api(self):
         # Import of config lists is very, very broken
         broker = self.get_broker()
+        broker.update(id=self.id, name=self.name, description=self.description)
         self.client._authenticate()
         url = self.client._method_url(broker._get_method_fullname("import"))
         resp = self.client.session.request("post", url, files={"overwrite_ind": 1, "file": self._content})
