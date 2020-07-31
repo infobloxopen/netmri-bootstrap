@@ -4,7 +4,7 @@ import json
 import logging
 import importlib
 from requests import exceptions
-from netmri_bootstrap import config
+from netmri_bootstrap import config, webui_broker
 from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
 from lxml.builder import E
 import lxml.etree as etree
@@ -20,7 +20,7 @@ class ApiObject():
     secondary_keys = ()
 
     def __init__(self, id=None, blob=None, error=None, **api_metadata):
-        self.broker = self.get_broker()
+        self._broker = None
         self.id = id
         if blob is not None:
             self._blob = blob
@@ -59,9 +59,21 @@ class ApiObject():
             value = metadata.get(attr, None)
             setattr(self, attr, value)
 
+    @property
+    def broker(self):
+        if self._broker is None:
+            self._broker = self.get_broker()
+        return self._broker
 
     @classmethod
     def get_broker(klass):
+        """
+        klass.api_broker can be either callable or string. If it's a string,
+        we use it as broker for infoblox_netmri. If it's callbale, we use 
+        its return value as API broker
+        """
+        if callable(klass.api_broker):
+            return klass.api_broker()
         return klass.client.get_broker(klass.api_broker)
 
     @classmethod
@@ -88,6 +100,7 @@ class ApiObject():
     # Create object from XXXRemote 
     def from_api(klass, remote):
         logger.debug(f"creating {klass.__name__} from {remote.__class__}")
+        print(remote)
         item_dict = {}
         item_dict["id"] = remote.id
         item_dict["updated_at"] = remote.updated_at
@@ -124,10 +137,12 @@ class ApiObject():
         self._content = self._blob.get_content()
 
     def delete_on_server(self):
-        broker = self.get_broker()
         logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
-        logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
-        check_dryrun(broker.destroy)(id=self.id)
+        if self.id is None:
+            logger.info(f"{self.path} wasn't found on server, ignoring")
+        else:
+            logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
+            check_dryrun(self.broker.destroy)(id=self.id)
         check_dryrun(self._blob.note.clear)()
 
     def push_to_api(self):
@@ -162,7 +177,7 @@ class ApiObject():
         self.save_note()
 
     # _do_push_to_api must be defined in a subclass and must return XXXRemote object.
-    # In some cases, this method must call self.get_broker().show(id=received_id) to obtain necessary metadata
+    # In some cases, this method must call self.broker.show(id=received_id) to obtain necessary metadata
     @check_dryrun
     def _do_push_to_api(self):
         raise NotImplementedError(f"Class {self.__class__} must implement _do_push_to_api")
@@ -203,12 +218,14 @@ class ApiObject():
 
     def generate_path(self):
         if self.path is None:
-            # Name must be unique, so it is safe
+            logger.debug(self.get_metadata())
             filename = getattr(self, self.secondary_keys[0], str(self.id))
-            filename = re.sub("[^A-Za-z0-9_\-.]", "_", filename)
+            logger.debug(f"Generating file path from {self.secondary_keys[0]} {filename}")
+            filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", filename)
             extension = self.get_extension()
             filename = '.'.join([filename, extension])
             self.path = os.path.join(self.scripts_dir(), self.get_subpath(), filename)
+            logger.debug(f"{self.secondary_keys[0]}->{self.path}")
         return self.path
 
     def find_by_secondary_keys(self):
@@ -218,6 +235,15 @@ class ApiObject():
             args[f"val_c_{key}"] = getattr(self, key)
         logger.debug(f"Executing {self.api_broker}.find with {args}")
         return self.broker.find(**args)
+
+    @classmethod
+    def index(klass):
+        return klass.get_broker().index()
+
+    def show(self, id=None):
+        if id is None:
+            id = self.id
+        return self.broker.show(id=id)
 
     @staticmethod
     def _parse_error(e):
@@ -342,9 +368,8 @@ class Script(ScriptLike):
         return r'^#*\s*Script-?(Description|Level|Category|Language)?:\s+(.*)$'
 
     def load_content_from_api(self):
-        broker = self.get_broker()
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
-        res = broker.export_file(id=self.id)
+        res = self.broker.export_file(id=self.id)
         # Some of the metadata will remain in imported file. Remove it here 
         # to add it later in more controlled fashion
         content_filtered = []
@@ -358,11 +383,10 @@ class Script(ScriptLike):
 
     @check_dryrun
     def _do_push_to_api(self):
-        broker = self.get_broker()
         if self.id is None:
-            rv = broker.create(script_file=self._content, language=self.language)
+            rv = self.broker.create(script_file=self._content, language=self.language)
         else:
-            rv = broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
+            rv = self.broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
         return rv
 
     def build_metadata_block(self):
@@ -451,19 +475,17 @@ class ScriptModule(ScriptLike):
         return r'^#*\s*(Export of Script Module|Description|Category|Language)?:\s+(.*)$'
 
     def load_content_from_api(self):
-        broker = self.get_broker()
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
-        res = broker.export_file(id=self.id)
+        res = self.broker.export_file(id=self.id)
         self._content = res["content"]
 
     @check_dryrun
     def _do_push_to_api(self):
-        broker = self.get_broker()
         content = self._strip_metadata_block()
         if self.id is None:
-            rv = broker.create(name=self.name, script_source=content, language=self.language, category=self.category, description=self.description)
+            rv = self.broker.create(name=self.name, script_source=content, language=self.language, category=self.category, description=self.description)
         else:
-            rv = broker.update(id=self.id, name=self.name, script_source=content, language=self.language, category=self.category, description=self.description, overwrite_ind=1)
+            rv = self.broker.update(id=self.id, name=self.name, script_source=content, language=self.language, category=self.category, description=self.description, overwrite_ind=1)
         return rv['script_module']
 
     def get_extension(self):
@@ -510,7 +532,7 @@ class ConfigList(ScriptLike):
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         try:
-            res = self.get_broker().export(id=self.id)
+            res = self.broker.export(id=self.id)
         except json.JSONDecodeError:
             logger.error("You have hit a bug in infoblox_netmri. Please update it to at least 3.6.0.0")
             raise 
@@ -519,9 +541,8 @@ class ConfigList(ScriptLike):
     @check_dryrun
     def _do_push_to_api(self):
         # Import of config lists is very, very broken
-        broker = self.get_broker()
-        broker.update(id=self.id, name=self.name, description=self.description)
-        self.client._authenticate()
+        self.broker.update(id=self.id, name=self.name, description=self.description)
+        # self.client._authenticate()  # Should already happen in update
         url = self.client._method_url(broker._get_method_fullname("import"))
         resp = self.client.session.request("post", url, files={"overwrite_ind": 1, "file": self._content})
         resp.raise_for_status()
@@ -529,7 +550,7 @@ class ConfigList(ScriptLike):
 
         if not result.get("success", False):
             raise ValueError(f"Sync of ConfigList {self.path} failed: {result['message']}")
-        return self.get_broker().show(id=result["id"])
+        return self.show(id=result["id"])
 
     @check_dryrun
     def save_to_disk(self):
@@ -561,12 +582,11 @@ class ConfigTemplate(ScriptLike):
 
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
-        res = self.get_broker().export(id=self.id)
+        res = self.broker.export(id=self.id)
         self._content = res["content"]
 
     @check_dryrun
     def _do_push_to_api(self):
-        broker = self.get_broker()
         api_args = self.get_metadata()
         api_args["template_text"] = self._strip_metadata_block()
         for k, v in api_args.items():
@@ -574,10 +594,10 @@ class ConfigTemplate(ScriptLike):
                 api_args[k] = ""
         if self.id is None:
             logger.debug(f"calling {self.api_broker}.create with {api_args}")
-            res = broker.create(**api_args)
+            res = self.broker.create(**api_args)
         else:
             logger.debug(f"calling {self.api_broker}.update with {api_args}")
-            res = broker.update(**api_args)
+            res = self.broker.update(**api_args)
 
         return res["config_template"]
 
@@ -615,7 +635,7 @@ class ConfigTemplate(ScriptLike):
                     if tag not in metadata:
                         metadata[tag2attr[tag]] = val
                 else:
-                    logging.warn(f"Unknown {self.api_broker} metadata tag {tag}. Ignoring")
+                    logger.warn(f"Unknown {self.api_broker} metadata tag {tag}. Ignoring")
 
         metadata["template_variables_text"] = template_vars
         metadata["description"] = "\n".join(template_description)
@@ -650,11 +670,22 @@ class XmlObject(ApiObject):
 
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
-        broker = self.get_broker()
-        res = self.get_broker().show(id=self.id)
+        res = self.show()
         rule_tree = E(self.root_element)
-        for attr in self.api_attrs:
-            val = getattr(res, attr.replace('-', '_'), None)
+        if type(self.api_attrs) is dict:
+            api_attrs = self.api_attrs.keys()
+        else:
+            api_attrs = self.api_attrs
+        for attr in api_attrs:
+            if type(self.api_attrs) is list:
+                attr_in_api = attr.replace('-', '_')
+            elif type(self.api_attrs) is dict:
+                attr_in_api = self.api_attrs[attr]
+
+            if type(res) is dict:
+                val = str(res.get(attr_in_api, None))
+            else:
+                val = getattr(res, attr_in_api, None)
             kwargs = {}
             if attr in self.datetime_attrs:
                 kwargs["type"] = "datetime"
@@ -667,16 +698,30 @@ class XmlObject(ApiObject):
             if attr in self.xml_attrs:
                 if val is not None:
                     rule_tree.append(etree.XML(val))
+            elif attr in self.custom_parsing:
+                # self.custom_parsing is a mapping between attibute and the parser method.
+                # Parser method must accept attribute value as the only parameter
+                # and return lxml.builder.E object
+                parser = self.custom_parsing[attr]
+                rule_tree.append(parser(val))
             else:
                 if val is None:
                     val = ""
                 if attr in self.boolean_attrs:
-                    # False -> "false"
-                    val = str(val).lower()
+                    # We try to cover a number of different ways to represent
+                    # boolean values
+                    if str(val).lower() in ('y', 'yes', 'true', 'on', '1'):
+                        val = "true"
+                    elif str(val).lower() in ('n', 'no', 'false', 'off', '0'):
+                        val = "false"
+                    else:
+                        raise ValueError(f"Boolean attribute {attr} has unrecognized value '{str(val)}'")
+
+                else:
+                    val = str(val)
                 rule_tree.append(E(attr, val, **kwargs))
 
 
-        # FIXME: there is NetmriVersion tag in exported rules. Need to investigate it
         self._content = rule_tree
 
     def load_content_from_repo(self):
@@ -692,26 +737,26 @@ class PolicyRule(XmlObject):
     secondary_keys = ("short_name", "name")
 
     root_element = "policy-rule"
-    api_attrs = ["action-after-exec", "author", "created-at", "description", "name", "read-only", "remediation", "severity", "short-name", "updated-at", "rule-logic", "script-filter"]
+    api_attrs = ["action-after-exec", "author", "description", "name", "read-only", "remediation", "severity", "short-name", "rule-logic", "script-filter"]
     datetime_attrs = ["created-at", "updated_at"]
     boolean_attrs = ["read-only"]
     nil_attrs = ["action-after-exec"]
     xml_attrs = ["rule-logic", "script-filter"]
+    custom_parsing = {}
 
     def __init__(self, **kwargs):
         super(PolicyRule, self).__init__(**kwargs)
 
     @check_dryrun
     def _do_push_to_api(self):
-        broker = self.get_broker()
         update_dict = self.get_metadata()
         if self.id is None:
             logger.debug(f"calling {self.api_broker}.create with {update_dict}")
-            res = broker.create(**update_dict)
+            res = self.broker.create(**update_dict)
             self.id = res['id']
         else:
             logger.debug(f"calling {self.api_broker}.update with {update_dict}")
-            res = broker.update(**update_dict)
+            res = self.broker.update(**update_dict)
 
         return res["policy_rule"]
 
@@ -743,18 +788,19 @@ class Policy(XmlObject):
     secondary_keys = ("short_name", "name")
 
     root_element = "policy"
-    api_attrs = ["author", "created-at", "description", "name", "read-only", "schedule-mode", "short-name", "updated-at", "set-filter"]
+    api_attrs = ["author", "description", "name", "read-only", "schedule-mode", "short-name", "set-filter"]
     datetime_attrs = ["created-at", "updated_at"]
     boolean_attrs = ["read-only"]
     nil_attrs = []
     xml_attrs = ["set-filter"]
+    custom_parsing = {}
 
     def __init__(self, *args, **kwargs):
         super(Policy, self).__init__(*args, **kwargs)
 
     def load_content_from_api(self):
         super(Policy, self).load_content_from_api()
-        res = self.get_broker().policy_rules(id=self.id)
+        res = self.broker.policy_rules(id=self.id)
         policy_rules = E("policy-rules", type="array")
         self.rules = []
         for rule in res:
@@ -776,19 +822,18 @@ class Policy(XmlObject):
 
     @check_dryrun
     def _do_push_to_api(self):
-        broker = self.get_broker()
         update_dict = self.get_metadata()
         if self.id is None:
             logger.debug(f"calling {self.api_broker}.create with {update_dict}")
-            res = broker.create(**update_dict)
+            res = self.broker.create(**update_dict)
             self.id = res['id']
         else:
             logger.debug(f"calling {self.api_broker}.update with {update_dict}")
-            res = broker.update(**update_dict)
+            res = self.broker.update(**update_dict)
 
-        old_rules = [r["short_name"] for r in broker.policy_rules(id=self.id)]
+        old_rules = [r["short_name"] for r in self.broker.policy_rules(id=self.id)]
         # TODO: load it from git instead. It will be faster (but there might be sync errors)
-        all_rules = {r.short_name:r.id for r in PolicyRule.get_broker().index()}
+        all_rules = {r.short_name:r.id for r in PolicyRule.index()}
 
         all_rules_set = set(all_rules.keys())
         old_rules_set = set(old_rules)
@@ -802,10 +847,109 @@ class Policy(XmlObject):
         rules_to_add = [all_rules[short_name] for short_name in new_rules_set - old_rules_set ]
         for rule_id in rules_to_delete:
             logger.debug(f"Removing reference to rule {rule_id} from policy {self.id}")
-            broker.remove_policy_rules(id=self.id, policy_rule_id=rule_id)
+            self.broker.remove_policy_rules(id=self.id, policy_rule_id=rule_id)
 
         for rule_id in rules_to_add:
             logger.debug(f"Adding reference to rule {rule_id} to policy {self.id}")
-            broker.add_policy_rules(id=self.id, policy_rule_id=rule_id)
+            self.broker.add_policy_rules(id=self.id, policy_rule_id=rule_id)
         return res["policy"]
 
+
+class CustomIssue(XmlObject):
+    """
+    Note that CustomIssue will not detect edits made via web UI due to API deficiencies
+    """
+    depends_on = ()
+    api_attributes = ("issue_id", "name", "description", "component", "correctness", "stability", "details")
+    secondary_keys = ("issue_id", "name")
+
+    root_element = "issue-adhoc"
+    api_attrs = {
+            "issue_id": "IssueTypeID",
+            "name": "Title",
+            "description": "Description",
+            "component": "Component",
+            "correctness": "Correctness",
+            "stability": "Stability",
+            "details": "Details"
+        }
+    datetime_attrs = []
+    boolean_attrs = ["correctness", "stability"]
+    nil_attrs = []
+    xml_attrs = []
+    custom_parsing = None
+
+    def __init__(self, **kwargs):
+        super(CustomIssue, self).__init__(**kwargs)
+        self.custom_parsing = {"details": self._parse_details}
+
+    @classmethod
+    def api_broker(klass):
+        client = klass.client
+        return webui_broker.IssueAdhocBroker(host=client.host, login=client.username, password=client.password, proto=client.protocol, ssl_verify=client.ssl_verify)
+
+    @check_dryrun
+    def _do_push_to_api(self):
+        update_dict = {}
+        if self.id is not None:
+            update_dict["IssueAdHocID"] = self.id
+        for our_attr, api_attr in self.api_attrs.items():
+            if our_attr in self.boolean_attrs:
+                val = getattr(self, our_attr, False)
+                if val:
+                    update_dict[api_attr] = "on"
+                else:
+                    update_dict[api_attr] = "off"
+            else:
+                update_dict[api_attr] = getattr(self, our_attr, "WAAGH")
+
+        url = "/webui/issues_adhoc/update"
+        logger.debug(f"calling {self.api_broker}.update with {update_dict}")
+        res = self.broker.update(update_dict)
+        if self.id is None:
+            self.id = res["id"]
+
+        return self.broker.show(id=self.id)
+
+    def set_metadata_from_content(self):
+        for attr in self.api_attributes:
+            if attr in self.boolean_attrs:
+                val = self._content.findtext(attr)
+                if val == "true":
+                    val = True
+                elif val == "false":
+                    val = False
+                else:
+                    raise ValueError(f"Boolean attribute {attr} must be either 'true' or 'false', not '{val}'")
+            elif attr == "details":
+                details = self._content.find(attr)
+                val_arr = []
+                for field in details:
+                    val_arr.append(f"{field.text},{field.get('type')}")
+                val = "\n".join(val_arr)
+            else:
+                val = self._content.findtext(attr)
+            setattr(self, attr, val)
+
+    def find_by_secondary_keys(self):
+        field = self.api_attrs[self.secondary_keys[0]]
+        value = getattr(self, self.secondary_keys[0])
+        logger.debug(f"Executing {self.api_broker}.find with {field} {value}")
+        return self.broker.find(field, value)
+
+    def delete_on_server(self):
+        logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
+        if self.id is None:
+            logger.info(f"{self.path} wasn't found on server, ignoring")
+        else:
+            logger.debug(f"calling {self.api_broker}.destroy with id {self.id}")
+            check_dryrun(self.broker.destroy)(self.id, self.issue_id)
+        check_dryrun(self._blob.note.clear)()
+
+    @staticmethod
+    def _parse_details(details):
+        tree = E("details")
+        for detail in details.splitlines():
+            field, type = detail.split(',')
+            tree.append(E("field", field, type=type))
+        return tree

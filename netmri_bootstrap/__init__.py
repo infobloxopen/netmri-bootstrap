@@ -29,7 +29,7 @@ class Bootstrapper:
         for klass in self.get_object_classes():
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
-            for item in broker.index():
+            for item in klass.index():
                 # NetMRI comes with a lot of pre-installed policies and rules. 
                 # These rules cannot be edited by user, so there is little point in keeping them in the repo
                 if self.config.skip_readonly_objects and getattr(item, "read_only", False):
@@ -106,7 +106,7 @@ class Bootstrapper:
             logger.debug(f"getting index of {broker.controller}")
             api_objects = {}
             git_objects = {}
-            for api_item in broker.index():
+            for api_item in klass.index():
                 if self.config.skip_readonly_objects and getattr(api_item, "read_only", False):
                     logger.debug(f"skipping {klass.__name__} {api_item.name} because it's read-only")
                     continue
