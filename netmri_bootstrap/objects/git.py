@@ -8,6 +8,7 @@ from netmri_bootstrap import config
 from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
 logger = logging.getLogger(__name__)
 
+
 # Notes in Git cannot exist without parent object (blob or commit). Therefore,
 # all notes should be accessed as .note property of their parent objects
 # This class exists only because gitpython doesn't have support for notes
@@ -17,9 +18,9 @@ class _Note():
         self.parent = parent
         self.content = content
 
-    # TODO: this takes relatively long time (approx. 35ms on my machine) because
-    # repo.git.notes() runs git executable. Perhaps direct access to git database
-    # via gitdb or GitCmdObjectDB would be faster
+    # TODO: this takes relatively long time (approx. 35ms on my machine)
+    # because repo.git.notes() runs git executable. Perhaps direct access
+    # to git database via gitdb or GitCmdObjectDB would be faster
     def read_note(self):
         logger.debug(f"Loading git note for {self.parent.id}")
         note_raw = None
@@ -29,13 +30,12 @@ class _Note():
             # This exception is thrown if anything goes wrong. Not having
             # a note attached is expected, any other error should be re-raised
             no_note_error = f"error: no note found for object {self.parent.id}"
-            if not no_note_error in e.stderr:
+            if no_note_error not in e.stderr:
                 raise
         if note_raw is None:
             self.content = None
         else:
             self.content = json.loads(note_raw)
-
 
     @check_dryrun
     def save(self):
@@ -43,7 +43,8 @@ class _Note():
         old_note = self.parent.find_note_on_ancestors(skip_self=True)
         if old_note is not None:
             old_note.clear()
-        self.repo.git.notes('add', self.parent.id, '-m', json.dumps(self.content), '-f')
+        self.repo.git.notes('add', self.parent.id, '-m',
+                            json.dumps(self.content), '-f')
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 
@@ -75,7 +76,8 @@ class Blob():
 
     @classmethod
     def from_note(klass, repo, note):
-        blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']), path=note['path'])
+        blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']),
+                        path=note['path'])
         return klass(repo, blob)
 
     @classmethod
@@ -110,21 +112,24 @@ class Blob():
         logger.debug(f"Trying to find git note on ancestors of {self.id}")
         if skip_self:
             logger.debug("Skipping own note")
-            note = None # We don't want to return the note if there isn't any note on older revision
+            # We don't want to return the note if there isn't any note
+            # on older revision
+            note = None
         else:
             note = self.note
 
         if skip_self or note.content is None:
             logger.debug(f"Examining all blobs for path {self.path}")
-            for commit in self.repo.repo.head.commit.iter_parents(paths=self.path):
+            for commit in self.repo.repo.head.commit.iter_parents(
+                    paths=self.path):
                 ancestor = Blob(self.repo, commit.tree[self.path])
 
                 logger.debug(f"Examining note on {ancestor.id}")
                 if ancestor.note.content is not None:
-                    # multiple tree entries will point to same blob if their 
-                    # content is identical. We have to account for the fact that
-                    # these files can evolve differently afterwards, so we treat
-                    # these duplicates as independent files
+                    # multiple tree entries will point to same blob if their
+                    # content is identical. We have to account for the fact
+                    # that these files can evolve differently afterwards, so we
+                    # treat these duplicates as independent files
                     # Steps to reproduce (assuming a.ccs is already in
                     # the repository):
                     #   cp a.ccs b.ccs
@@ -134,7 +139,10 @@ class Blob():
                         logger.debug(f"Found note on {ancestor.id}")
                         note = ancestor.note
                     else:
-                        logger.debug(f"Ancestor has path {ancestor.note.content['path']}, but we need note for {self.path}: two copies of same file have diverged?")
+                        logger.debug(f"Ancestor has path "
+                                     f"{ancestor.note.content['path']}, but we"
+                                     f" need note for {self.path}: two copies "
+                                     f"of same file have diverged?")
                     break
         return note
 
@@ -152,14 +160,13 @@ class Blob():
 # initialise subdirs for them
 class Repo():
     def __init__(self, repo_path, watched_branch='master'):
-        self.repo = git.Repo(repo_path) # TODO: point head to correct branch
+        self.repo = git.Repo(repo_path)  # TODO: point head to correct branch
         self.path = repo_path
         self.branch = watched_branch
 
         self.git = self.repo.git
         # helper structure to speed up note lookups
         self.reset_object_index()
-
 
     @classmethod
     def init_empty_repo(klass, repo_path, watched_branch='master'):
@@ -194,16 +201,17 @@ class Repo():
                 continue
             yield Blob(self, blob)
 
-
-    # Creates tag "synced_to_netmri" that points to last commit successfully pushed to server.
+    # Creates tag "synced_to_netmri" that points to last commit successfully
+    # pushed to the server.
     @check_dryrun
     def mark_bootstrap_sync(self, commit=None, force=True):
         if commit is None:
             commit = self.repo.heads[self.branch].commit
         logger.debug(f"Marking commit {commit.hexsha} as synced to netmri")
-        tag = git.refs.tag.TagReference.create(self.repo, "synced_to_netmri", ref=commit, force=force)
+        tag = git.refs.tag.TagReference.create(self.repo,
+                                               "synced_to_netmri", ref=commit,
+                                               force=force)
         return tag
-
 
     def get_last_synced_commit(self):
         for tag in git.refs.tag.TagReference.iter_items(self.repo):
@@ -214,8 +222,8 @@ class Repo():
     def detect_changes(self):
         old_state = self.get_last_synced_commit()
         logger.debug(f"Finding changes since commit {old_state}")
-        old_blobs = {b.path:b for b in self.get_blobs(old_state)}
-        new_blobs = {b.path:b for b in self.get_blobs()}
+        old_blobs = {b.path: b for b in self.get_blobs(old_state)}
+        new_blobs = {b.path: b for b in self.get_blobs()}
 
         old_paths = set(old_blobs.keys())
         new_paths = set(new_blobs.keys())
@@ -226,7 +234,7 @@ class Repo():
         # blob they point to will stay the same. Rename changes nothing on
         # netmri side, so we'll ignore it
         # (renaming scripts/something.py -> lists/something.csv will cause
-        # problems for netmri-bootstrap, but they should be rejected by 
+        # problems for netmri-bootstrap, but they should be rejected by
         # pre-commit hook)
         for blob in added:
             if blob in deleted:
@@ -250,7 +258,8 @@ class Repo():
             logger.debug("building index from git notes")
             self._object_index = {}
             for line in self.git.notes('list').splitlines():
-                # accessing note blob directly is much faster than running 'git notes show'
+                # accessing note blob directly is much faster than running
+                # 'git notes show'
                 note_id, note_target = line.split()
                 note_blob = git.Blob(self.repo, binascii.a2b_hex(note_id))
                 note_content = note_blob.data_stream.read()
@@ -262,7 +271,9 @@ class Repo():
                 if note_id not in self._object_index[note_class]:
                     self._object_index[note_class][note_id] = note_obj
                 else:
-                    logger.warn(f"Found duplicates for {note_class} id {note_id}: {self._object_index[note_class][note_id]['path']}")
+                    logger.warn(
+                        f"Found duplicates for {note_class} id {note_id}: "
+                        f"{self._object_index[note_class][note_id]['path']}")
         return self._object_index
 
     @property
@@ -275,7 +286,6 @@ class Repo():
                     if note["error"]:
                         self._errors_index[klass][note["id"]] = note
         return self._errors_index
-
 
     def reset_object_index(self):
         self._object_index = None
@@ -299,26 +309,27 @@ class Repo():
     def get_path_in_repo(self, path):
         """
         Path can be in one of these forms:
-        Absolute path (/opt/netmri_bootstrap/scripts/script.py)
-        Path relative to current directory (./netmri_bootstrap/scripts/script.py)
-        Path relative to repo root (scripts/script.py)
+        Absolute path (/opt/netmri_bootstrap/scripts/foo.py)
+        Path relative to current directory (./netmri_bootstrap/scripts/foo.py)
+        Path relative to repo root (scripts/foo.py)
         This method converts them all into path relative to the repo.
         """
         absolute_path = os.path.abspath(path)
         absolute_repo_root = os.path.abspath(self.path)
-        if os.path.commonpath([absolute_path, absolute_repo_root]) != absolute_repo_root:
+        if os.path.commonpath([absolute_path, absolute_repo_root]) \
+                != absolute_repo_root:
             if os.path.isabs(path):
                 raise ValueError(f"{path} is outside of repository {self.path}")
             else:
                 # Simplify constructions like a//b/../c (becomes a/c)
-                normalized_path =  os.path.normpath(path)
+                normalized_path = os.path.normpath(path)
                 for object_subpath in config.get_config().class_paths.values():
                     if normalized_path.startswith(object_subpath):
                         logger.debug(f"Assuming {path} is inside the repo")
                         return normalized_path
                 raise ValueError(f"Relative path {path} is invalid")
         else:
-            relative_path = os.path.relpath(absolute_path, start=absolute_repo_root)
+            relative_path = os.path.relpath(absolute_path,
+                                            start=absolute_repo_root)
             logger.debug(f"Translated {path} to {relative_path}")
             return relative_path
-

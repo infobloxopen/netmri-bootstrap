@@ -43,7 +43,8 @@ class ApiObject():
         return res
 
     def set_metadata(self, metadata):
-        logger.debug(f"setting metadata for instance of {self.__class__.__name__} with {metadata}")
+        logger.debug(f"setting metadata for instance of "
+                     f"{self.__class__.__name__} with {metadata}")
         if 'id' in metadata:
             self.id = metadata['id']
         if 'updated_at' in metadata:
@@ -69,7 +70,7 @@ class ApiObject():
     def get_broker(klass):
         """
         klass.api_broker can be either callable or string. If it's a string,
-        we use it as broker for infoblox_netmri. If it's callbale, we use 
+        we use it as broker for infoblox_netmri. If it's callbale, we use
         its return value as API broker
         """
         if callable(klass.api_broker):
@@ -97,7 +98,7 @@ class ApiObject():
         return getattr(the_module, subclass_name)
 
     @classmethod
-    # Create object from XXXRemote 
+    # Create object from XXXRemote
     def from_api(klass, remote):
         logger.debug(f"creating {klass.__name__} from {remote.__class__}")
         print(remote)
@@ -117,27 +118,30 @@ class ApiObject():
         logger.debug(f"creating {klass.__name__} from {blob.path}")
         item_dict = {}
         note = blob.find_note_on_ancestors()
-        if note.content is not None:    
-            item_dict = dict(**(note.content)) # poor man's deepcopy
+        if note.content is not None:
+            item_dict = dict(**(note.content))  # poor man's deepcopy
         item_dict['blob'] = blob
         item_dict['path'] = blob.path
         logger.debug(f"setting attributes from {item_dict}")
         res = klass(**item_dict)
         res.load_content_from_repo()
-        # This will update metadata values from note with ones from content itself
-        # Note that we don't update git note here. It will be done on api push, if necessary
+        # This will update metadata values from note with ones from the content
+        # Note that we don't update git note here. It will be done
+        # on api push, if necessary
         res.set_metadata_from_content()
         return res
 
     def load_content_from_api(self):
-        raise NotImplementedError(f"Class {self.__class__} must implement load_content_from_api")
+        raise NotImplementedError(f"Class {self.__class__} must implement "
+                                  f"load_content_from_api")
 
     def load_content_from_repo(self):
-        logger.debug(f"loading content for {self.api_broker} from {self._blob.path}")
+        logger.debug(f"loading content for {self.api_broker} from "
+                     f"{self._blob.path}")
         self._content = self._blob.get_content()
 
     def delete_on_server(self):
-        logger.info(f"DEL {self.api_broker} {self.name} (id {self.id}) [{self.path}]")
+        logger.info(f"DEL {repr(self)} [{self.path}]")
         if self.id is None:
             logger.info(f"{self.path} wasn't found on server, ignoring")
         else:
@@ -154,9 +158,9 @@ class ApiObject():
             else:
                 raise ValueError(f"Content for {self.path} is not loaded")
         if self.id is None:
-            logger.info(f"{self.path} -> {self.api_broker} \"{self.name}\" NEW")
+            logger.info(f"{self.path} -> {repr(self)} NEW")
         else:
-            logger.info(f"{self.path} -> {self.api_broker} \"{self.name}\" (id {self.id})")
+            logger.info(f"{self.path} -> {repr(self)})")
         try:
             api_result = self._do_push_to_api()
             if api_result is None and get_dryrun:
@@ -172,32 +176,37 @@ class ApiObject():
             self.error = None
         except Exception as e:
             self.error = self._parse_error(e)
-            logger.error(f"An error has occured while syncing {self.path}: {self.error}")
+            logger.error(f"An error has occured while syncing {self.path}: "
+                         f"{self.error}")
 
         self.save_note()
 
-    # _do_push_to_api must be defined in a subclass and must return XXXRemote object.
-    # In some cases, this method must call self.broker.show(id=received_id) to obtain necessary metadata
+    # _do_push_to_api must be defined in a subclass and must return instance
+    # of XXXRemote. In some cases, this method must call
+    # self.broker.show(id=received_id) to obtain necessary metadata
     @check_dryrun
     def _do_push_to_api(self):
-        raise NotImplementedError(f"Class {self.__class__} must implement _do_push_to_api")
+        raise NotImplementedError(f"Class {self.__class__} must implement "
+                                  "_do_push_to_api")
 
     # This must be overridden in a subclass
     def set_metadata_from_content(self):
-        raise NotImplementedError(f"Class {self.__class__} must implement set_metadata_from_content")
+        raise NotImplementedError(f"Class {self.__class__} must implement "
+                                  "set_metadata_from_content")
 
     def get_full_path(self):
         # TODO: find path by broker and id if no path is provided
-        pass 
+        pass
 
     # TODO: must create git blobs instead of files so it'll work on bare repo
     # See https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
     @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
-        os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
+        os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()),
+                    exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
+        logger.info(f"{repr(self)} -> {self.path}")
         with open(fn, 'w') as f:
             f.write(self._content)
         return fn
@@ -207,9 +216,17 @@ class ApiObject():
         self._blob.note = self.get_note()
 
     def get_note(self):
-        return {"id": self.id, "path": self.path, "updated_at": self.updated_at, "blob": self._blob.id, "class": self.__class__.__name__, "error": self.error}
+        return {
+                "id": self.id,
+                "path": self.path,
+                "updated_at": self.updated_at,
+                "blob": self._blob.id,
+                "class": self.__class__.__name__,
+                "error": self.error
+               }
 
-    # Some objects, like scripts, have subcategories. These categories are represented as subdirs
+    # Some objects, like scripts, have subcategories.
+    # These categories are represented as subdirs
     def get_subpath(self):
         return ''
 
@@ -219,13 +236,15 @@ class ApiObject():
     def generate_path(self):
         if self.path is None:
             logger.debug(self.get_metadata())
+            # use id in unlikely case the object has no secondary keys
             filename = getattr(self, self.secondary_keys[0], str(self.id))
-            logger.debug(f"Generating file path from {self.secondary_keys[0]} {filename}")
+            logger.debug(f"Generating file path from {filename}")
             filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", filename)
             extension = self.get_extension()
             filename = '.'.join([filename, extension])
-            self.path = os.path.join(self.scripts_dir(), self.get_subpath(), filename)
-            logger.debug(f"{self.secondary_keys[0]}->{self.path}")
+            self.path = os.path.join(self.scripts_dir(), self.get_subpath(),
+                                     filename)
+            logger.debug(f"{self.secondary_keys[0]} -> {self.path}")
         return self.path
 
     def find_by_secondary_keys(self):
@@ -269,17 +288,26 @@ class ApiObject():
         # If error is not in json, return it as is
         return msg
 
+    def __repr__(self):
+        if self.id is None:
+            return f'{self.api_broker} "{self.name}"'
+        else:
+            return f'{self.api_broker} "{self.name}" (id {self.id})'
+
+
 class ScriptLike(ApiObject):
     comment_to_props = {}
     """
-    Script-like objects contain their metadata in commented block in the beginning of file.
-    Presently, this includes scripts, script modules, config lists and config templates.
+    Script-like objects contain their metadata in commented block in
+    the beginning of the file. Presently, this includes scripts, script
+    modules, config lists and config templates.
     """
     def __init__(self, **kwargs):
         super(ScriptLike, self).__init__(**kwargs)
-    
+
     def _get_metadata_block_regex(self):
-        raise NotImplementedError(f"Class {self.__class__} must implement _get_metadata_block_regex")
+        raise NotImplementedError(f"Class {self.__class__} must implement "
+                                  "_get_metadata_block_regex")
 
     def set_metadata_from_content(self):
         regex = re.compile(self._get_metadata_block_regex())
@@ -290,11 +318,13 @@ class ScriptLike(ApiObject):
                 key = m.group(1)
                 val = m.group(2)
                 prop = self.comment_to_props[key]
-                # We use first occurence of metadata entry, if there is more than one of it in the file
+                # We use first occurence of metadata entry, if there is
+                # more than one of it in the file
                 if prop not in metadata:
                     metadata[prop] = val
 
-        # These values are mandatory. Fill them from path, for the lack of better alternative
+        # These values are mandatory. Fill them from path, for the lack
+        # of better alternative
         if 'name' not in metadata:
             metadata['name'] = os.path.basename(self.path)
 
@@ -316,7 +346,7 @@ class ScriptLike(ApiObject):
         conf = config.get_config()
         fn = os.path.join(conf.scripts_root, self.generate_path())
         os.makedirs(os.path.dirname(fn), exist_ok=True)
-        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
+        logger.info(f"{repr(self)} -> {self.path}")
         with open(fn, 'w') as f:
             f.write(self.build_metadata_block())
             f.write(self._content)
@@ -341,11 +371,11 @@ class ScriptLike(ApiObject):
         return "\n".join(lines_filtered)
 
 
-
 class Script(ScriptLike):
-    depends_on=()
+    depends_on = ()
     api_broker = "Script"
-    api_attributes = ('name', 'description', 'risk_level', 'language', 'category')
+    api_attributes = ('name', 'description', 'risk_level', 'language',
+                      'category')
     secondary_keys = ("name",)
     comment_to_props = {
             None: "name",
@@ -370,7 +400,7 @@ class Script(ScriptLike):
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         res = self.broker.export_file(id=self.id)
-        # Some of the metadata will remain in imported file. Remove it here 
+        # Some of the metadata will remain in imported file. Remove it here
         # to add it later in more controlled fashion
         content_filtered = []
         for line in res["content"].splitlines():
@@ -384,9 +414,13 @@ class Script(ScriptLike):
     @check_dryrun
     def _do_push_to_api(self):
         if self.id is None:
-            rv = self.broker.create(script_file=self._content, language=self.language)
+            rv = self.broker.create(script_file=self._content,
+                                    language=self.language)
         else:
-            rv = self.broker.update(id=self.id, script_name=self.name, script_file=self._content, language=self.language)
+            rv = self.broker.update(id=self.id,
+                                    script_name=self.name,
+                                    script_file=self._content,
+                                    language=self.language)
         return rv
 
     def build_metadata_block(self):
@@ -457,7 +491,7 @@ class Script(ScriptLike):
 
 
 class ScriptModule(ScriptLike):
-    depends_on=()
+    depends_on = ()
     api_broker = "ScriptModule"
     api_attributes = ('name', 'category', 'description', 'language')
     secondary_keys = ("name",)
@@ -483,9 +517,19 @@ class ScriptModule(ScriptLike):
     def _do_push_to_api(self):
         content = self._strip_metadata_block()
         if self.id is None:
-            rv = self.broker.create(name=self.name, script_source=content, language=self.language, category=self.category, description=self.description)
+            rv = self.broker.create(name=self.name,
+                                    script_source=content,
+                                    language=self.language,
+                                    category=self.category,
+                                    description=self.description)
         else:
-            rv = self.broker.update(id=self.id, name=self.name, script_source=content, language=self.language, category=self.category, description=self.description, overwrite_ind=1)
+            rv = self.broker.update(id=self.id,
+                                    name=self.name,
+                                    script_source=content,
+                                    language=self.language,
+                                    category=self.category,
+                                    description=self.description,
+                                    overwrite_ind=1)
         return rv['script_module']
 
     def get_extension(self):
@@ -511,7 +555,7 @@ class ScriptModule(ScriptLike):
 
 
 class ConfigList(ScriptLike):
-    depends_on=()
+    depends_on = ()
     api_broker = "ConfigList"
     api_attributes = ("name", "description")
     secondary_keys = ("name",)
@@ -534,14 +578,16 @@ class ConfigList(ScriptLike):
         try:
             res = self.broker.export(id=self.id)
         except json.JSONDecodeError:
-            logger.error("You have hit a bug in infoblox_netmri. Please update it to at least 3.6.0.0")
-            raise 
+            logger.error("You have hit a bug in infoblox_netmri. "
+                         "Please update it to at least 3.6.0.0")
+            raise
         self._content = res["content"]
 
     @check_dryrun
     def _do_push_to_api(self):
         # Import of config lists is very, very broken
-        self.broker.update(id=self.id, name=self.name, description=self.description)
+        self.broker.update(id=self.id, name=self.name,
+                           description=self.description)
         # self.client._authenticate()  # Should already happen in update
         url = self.client._method_url(broker._get_method_fullname("import"))
         resp = self.client.session.request("post", url, files={"overwrite_ind": 1, "file": self._content})
@@ -549,29 +595,33 @@ class ConfigList(ScriptLike):
         result = resp.json()
 
         if not result.get("success", False):
-            raise ValueError(f"Sync of ConfigList {self.path} failed: {result['message']}")
+            raise ValueError(f"Sync of ConfigList {self.path} failed: "
+                             f"{result['message']}")
         return self.show(id=result["id"])
 
     @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
-        os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
+        os.makedirs(os.path.join(conf.scripts_root,
+                    self.scripts_dir()), exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
+        logger.info(f"{repr(self)} -> {self.path}")
         with open(fn, 'w') as f:
             # No need to write metadata block, it's already exported
             f.write(self._content)
         return fn
 
-    # Metadata block is already present in exported file. No need to duplicate it
+    # Metadata block is already present in exported file
     def build_metadata_block(self):
         return ''
 
 
 class ConfigTemplate(ScriptLike):
-    depends_on=()
+    depends_on = ()
     api_broker = "ConfigTemplate"
-    api_attributes = ('name', 'description', 'device_type', 'model', 'risk_level', 'template_type', 'vendor', 'version', 'template_variables_text')
+    api_attributes = ('name', 'description', 'device_type', 'model',
+                      'risk_level', 'template_type', 'vendor', 'version',
+                      'template_variables_text')
     secondary_keys = ("name",)
 
     def __init__(self, **kwargs):
@@ -602,9 +652,11 @@ class ConfigTemplate(ScriptLike):
         return res["config_template"]
 
     def set_metadata_from_content(self):
-        # There can be several variables. Each of them is defined on its own line pefixed with "## Template-Variable: " tag
+        # There can be several variables. Each of them is defined on its own
+        # line pefixed with "## Template-Variable: " tag
         template_vars = []
-        # Description can be multi-line. Every line is prefixed with "## Template-Description: " tag
+        # Description can be multi-line. Every line is prefixed
+        # with "## Template-Description: " tag
         template_description = []
         metadata = {}
         tag2attr = {
@@ -625,7 +677,8 @@ class ConfigTemplate(ScriptLike):
             if attr_match:
                 tag = attr_match.group(1)
                 val = attr_match.group(2)
-                # We use first occurence of metadata entry, if there is more than one of it in the file
+                # We use first occurence of metadata entry, if there is
+                # more than one of it in the file
                 if tag == "Variable":
                     template_vars.append(val)
                 elif tag == 'Description':
@@ -639,12 +692,12 @@ class ConfigTemplate(ScriptLike):
 
         metadata["template_variables_text"] = template_vars
         metadata["description"] = "\n".join(template_description)
-        # These values are mandatory. Fill them from path, for the lack of better alternative
+        # These values are mandatory. Fill them from path
         if 'name' not in metadata:
             metadata['name'] = os.path.basename(self.path)
 
         # This field is required. Set it to "Device" if not specified
-        if self.template_type is None: 
+        if self.template_type is None:
             metadata["template_type"] = "Device"
         logger.debug(f"setting object metadata from {metadata}")
         self.set_metadata(metadata)
@@ -660,10 +713,12 @@ class XmlObject(ApiObject):
     @check_dryrun
     def save_to_disk(self):
         conf = config.get_config()
-        os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()), exist_ok=True)
+        os.makedirs(os.path.join(conf.scripts_root, self.scripts_dir()),
+                    exist_ok=True)
         fn = os.path.join(conf.scripts_root, self.generate_path())
-        logger.info(f"{self.api_broker} \"{self.name}\" (id {self.id}) -> {self.path}")
-        content = etree.tostring(self._content, pretty_print=True, xml_declaration=True, encoding="UTF-8")
+        logger.info(f"{repr(self)} -> {self.path}")
+        content = etree.tostring(self._content, pretty_print=True,
+                                 xml_declaration=True, encoding="UTF-8")
         with open(fn, 'wb') as f:
             f.write(content)
         return fn
@@ -699,9 +754,9 @@ class XmlObject(ApiObject):
                 if val is not None:
                     rule_tree.append(etree.XML(val))
             elif attr in self.custom_parsing:
-                # self.custom_parsing is a mapping between attibute and the parser method.
-                # Parser method must accept attribute value as the only parameter
-                # and return lxml.builder.E object
+                # self.custom_parsing is a mapping between attibute
+                # and parser method. Parser method must accept attribute value
+                # as the only parameter and return lxml.builder.E object
                 parser = self.custom_parsing[attr]
                 rule_tree.append(parser(val))
             else:
@@ -715,29 +770,34 @@ class XmlObject(ApiObject):
                     elif str(val).lower() in ('n', 'no', 'false', 'off', '0'):
                         val = "false"
                     else:
-                        raise ValueError(f"Boolean attribute {attr} has unrecognized value '{str(val)}'")
+                        raise ValueError(f"Boolean attribute {attr} has "
+                                         f"unrecognized value '{str(val)}'")
 
                 else:
                     val = str(val)
                 rule_tree.append(E(attr, val, **kwargs))
 
-
         self._content = rule_tree
 
     def load_content_from_repo(self):
-        logger.debug(f"loading content for {self.api_broker} from {self._blob.path}")
+        logger.debug(f"loading content for {self.api_broker} from "
+                     f"{self._blob.path}")
         content = self._blob.get_content(return_bytes=True)
         self._content = etree.fromstring(content)
 
 
 class PolicyRule(XmlObject):
-    depends_on=()
+    depends_on = ()
     api_broker = "PolicyRule"
-    api_attributes = ('name', 'description', 'author', 'set_filter', 'rule_logic', 'severity', 'action_after_exec', 'remediation', 'short_name', 'read_only')
+    api_attributes = ('name', 'description', 'author', 'set_filter',
+                      'rule_logic', 'severity', 'action_after_exec',
+                      'remediation', 'short_name', 'read_only')
     secondary_keys = ("short_name", "name")
 
     root_element = "policy-rule"
-    api_attrs = ["action-after-exec", "author", "description", "name", "read-only", "remediation", "severity", "short-name", "rule-logic", "script-filter"]
+    api_attrs = ["action-after-exec", "author", "description", "name",
+                 "read-only", "remediation", "severity", "short-name",
+                 "rule-logic", "script-filter"]
     datetime_attrs = ["created-at", "updated_at"]
     boolean_attrs = ["read-only"]
     nil_attrs = ["action-after-exec"]
@@ -760,7 +820,6 @@ class PolicyRule(XmlObject):
 
         return res["policy_rule"]
 
-
     def set_metadata_from_content(self):
         self.author = self._content.findtext("author")
         self.description = self._content.findtext("description")
@@ -782,13 +841,15 @@ class PolicyRule(XmlObject):
 
 class Policy(XmlObject):
     # We should sync policy rules before we sync policies that use them
-    depends_on=("PolicyRule",)
+    depends_on = ("PolicyRule",)
     api_broker = "Policy"
-    api_attributes = ('name', 'description', 'author', 'set_filter', 'severity', 'schedule_mode', 'short_name', 'read_only')
+    api_attributes = ('name', 'description', 'author', 'set_filter',
+                      'severity', 'schedule_mode', 'short_name', 'read_only')
     secondary_keys = ("short_name", "name")
 
     root_element = "policy"
-    api_attrs = ["author", "description", "name", "read-only", "schedule-mode", "short-name", "set-filter"]
+    api_attrs = ["author", "description", "name", "read-only", "schedule-mode",
+                 "short-name", "set-filter"]
     datetime_attrs = ["created-at", "updated_at"]
     boolean_attrs = ["read-only"]
     nil_attrs = []
@@ -832,8 +893,7 @@ class Policy(XmlObject):
             res = self.broker.update(**update_dict)
 
         old_rules = [r["short_name"] for r in self.broker.policy_rules(id=self.id)]
-        # TODO: load it from git instead. It will be faster (but there might be sync errors)
-        all_rules = {r.short_name:r.id for r in PolicyRule.index()}
+        all_rules = {r.short_name: r.id for r in PolicyRule.index()}
 
         all_rules_set = set(all_rules.keys())
         old_rules_set = set(old_rules)
@@ -841,10 +901,12 @@ class Policy(XmlObject):
 
         invalid_rules = new_rules_set - all_rules_set
         if invalid_rules:
-            raise ValueError(f"Policy {self.short_name} references nonexistent rule(s): " + ",".join(invalid_rules))
+            msg = f"Policy {self.short_name} references nonexistent rule(s): "\
+                + ",".join(invalid_rules)
+            raise ValueError(msg)
 
         rules_to_delete = [all_rules[short_name] for short_name in old_rules_set - new_rules_set]
-        rules_to_add = [all_rules[short_name] for short_name in new_rules_set - old_rules_set ]
+        rules_to_add = [all_rules[short_name] for short_name in new_rules_set - old_rules_set]
         for rule_id in rules_to_delete:
             logger.debug(f"Removing reference to rule {rule_id} from policy {self.id}")
             self.broker.remove_policy_rules(id=self.id, policy_rule_id=rule_id)
@@ -860,7 +922,8 @@ class CustomIssue(XmlObject):
     Note that CustomIssue will not detect edits made via web UI due to API deficiencies
     """
     depends_on = ()
-    api_attributes = ("issue_id", "name", "description", "component", "correctness", "stability", "details")
+    api_attributes = ("issue_id", "name", "description", "component",
+                      "correctness", "stability", "details")
     secondary_keys = ("issue_id", "name")
 
     root_element = "issue-adhoc"
@@ -886,7 +949,13 @@ class CustomIssue(XmlObject):
     @classmethod
     def api_broker(klass):
         client = klass.client
-        return webui_broker.IssueAdhocBroker(host=client.host, login=client.username, password=client.password, proto=client.protocol, ssl_verify=client.ssl_verify)
+        return webui_broker.IssueAdhocBroker(
+                                             host=client.host,
+                                             login=client.username,
+                                             password=client.password,
+                                             proto=client.protocol,
+                                             ssl_verify=client.ssl_verify
+                                            )
 
     @check_dryrun
     def _do_push_to_api(self):
@@ -920,7 +989,8 @@ class CustomIssue(XmlObject):
                 elif val == "false":
                     val = False
                 else:
-                    raise ValueError(f"Boolean attribute {attr} must be either 'true' or 'false', not '{val}'")
+                    raise ValueError(f"Boolean attribute {attr} must be either"
+                                     f" 'true' or 'false', not '{val}'")
             elif attr == "details":
                 details = self._content.find(attr)
                 val_arr = []
@@ -953,3 +1023,9 @@ class CustomIssue(XmlObject):
             field, type = detail.split(',')
             tree.append(E("field", field, type=type))
         return tree
+
+    def __repr__(self):
+        if self.id is None:
+            return f'CustomIssue "{self.name}"'
+        else:
+            return f'CustomIssue "{self.name}" (id {self.id})'
