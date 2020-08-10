@@ -6,6 +6,7 @@ from netmri_bootstrap.objects import git
 from netmri_bootstrap.objects import api
 logger = logging.getLogger(__name__)
 
+
 class Bootstrapper:
     def __init__(self, repo=None):
         self.config = config.get_config()
@@ -22,15 +23,15 @@ class Bootstrapper:
         repo = git.Repo.init_empty_repo(conf.scripts_root, conf.bootstrap_branch)
         return klass(repo=repo)
 
-
     def export_from_netmri(self):
+        """Download all objects of given class (init subcommand)"""
         logger.debug(f"Downloading API items from NetMRI")
         saved_objs = []
         for klass in self.get_object_classes():
             broker = klass.get_broker()
             logger.debug(f"getting index of {broker.controller}")
             for item in klass.index():
-                # NetMRI comes with a lot of pre-installed policies and rules. 
+                # NetMRI comes with a lot of pre-installed policies and rules.
                 # These rules cannot be edited by user, so there is little point in keeping them in the repo
                 if self.config.skip_readonly_objects and getattr(item, "read_only", False):
                     logger.debug(f"skipping {klass.__name__} \"{item.name}\" because it's read-only")
@@ -51,8 +52,8 @@ class Bootstrapper:
         for obj in saved_objs:
             obj.save_note()
 
-
     def update_netmri(self, retry_errors=False):
+        """Update all objects changed since last synced commit"""
         added, deleted, changed = self.repo.detect_changes()
         if not retry_errors and len(added) == 0 and len(deleted) == 0 and len(changed) == 0:
             logger.info("No changes to push to server")
@@ -86,15 +87,17 @@ class Bootstrapper:
         self.repo.mark_bootstrap_sync()
 
     def force_push(self, paths):
+        """Update specified objects on server regardless of their sync status"""
         for path in paths:
             repo_path = self.repo.get_path_in_repo(path)
             blob = git.Blob.from_path(self.repo, repo_path)
             obj = api.ApiObject.from_blob(blob)
             obj.push_to_api()
 
-
-    # Make sure that scripts weren't changed outside of netmri-bootstrap
     def check_netmri(self, local_only=False):
+        """List objects that were changed outside of netmri-bootstrap,
+        or have sync errors
+        """
         err_count = 0
         err_count += self._local_check()
         # Skip long remote checks
@@ -157,8 +160,8 @@ class Bootstrapper:
             logger.info("Repository and the server are in sync")
         return all_clear
 
-    # Checks that there are no untracked and uncommitted files
     def _local_check(self):
+        """Checks that there are no untracked and uncommitted files"""
         err_count = 0
         for path in self.repo.repo.untracked_files:
             logger.warn(f"File {path} is untracked. This file will be ignored")
@@ -172,6 +175,7 @@ class Bootstrapper:
         return err_count
 
     def cat_file(self, path, from_api=False):
+        """Print file contents from the repo or from API"""
         repo_path = self.repo.get_path_in_repo(path)
         blob = git.Blob.from_path(self.repo, repo_path)
         obj = api.ApiObject.from_blob(blob)
@@ -183,6 +187,7 @@ class Bootstrapper:
         print(obj._content)
 
     def show_metadata(self, path):
+        """Displays git note for the object"""
         repo_path = self.repo.get_path_in_repo(path)
         blob = git.Blob.from_path(self.repo, repo_path)
         obj = api.ApiObject.from_blob(blob)
@@ -190,6 +195,8 @@ class Bootstrapper:
             print(f"{key}: {value}")
 
     def relink(self, path):
+        """Find object on server by its secondary key and store id in git note
+        """
         repo_path = self.repo.get_path_in_repo(path)
         blob = git.Blob.from_path(self.repo, repo_path)
         obj = api.ApiObject.from_blob(blob)
@@ -213,9 +220,9 @@ class Bootstrapper:
         else:
             duplicates = [remote.id for remote in res]
             raise ValueError(f"Found duplicates of {obj.path}: {','.join(duplicates)}. This should not happen.")
-        
 
     def fetch(self, path, id=None, overwrite=False):
+        """Download object from API and commit it to the repo"""
         repo_path = self.repo.get_path_in_repo(path)
         if self.repo.path_exists(repo_path):
             blob = git.Blob.from_path(self.repo, repo_path)
@@ -247,17 +254,12 @@ class Bootstrapper:
         self.repo.commit(message=f"Fetch of {path} by netmri-bootstrap")
         obj.save_note()
 
-
-    # Delete all scripts on netmri, then upload scripts from repo
-    # While it looks simple on the surface, any failure in this process will
-    # lead to loss of data on netmri side that would be hard to remediate
-    def full_resync(repo):
-        pass
-
-    # Resolve class names from config into actual classes.
-    # Also, always return dependencies before dependent classes
     @staticmethod
     def get_object_classes(class_names=None):
+        """
+        Resolve class names from config into actual classes.
+        Also, always return dependencies before dependent classes
+        """
         if class_names is None:
             conf = config.get_config()
             classes = conf.class_paths.keys()
@@ -278,5 +280,3 @@ class Bootstrapper:
             return res
         else:
             return class_list
-
-
