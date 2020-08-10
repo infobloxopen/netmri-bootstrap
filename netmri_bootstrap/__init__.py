@@ -245,6 +245,7 @@ class Bootstrapper:
 
         logger.debug("Committing downloaded objects to repo")
         self.repo.commit(message=f"Fetch of {path} by netmri-bootstrap")
+        obj.save_note()
 
 
     # Delete all scripts on netmri, then upload scripts from repo
