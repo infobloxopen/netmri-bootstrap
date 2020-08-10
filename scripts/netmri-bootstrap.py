@@ -34,10 +34,6 @@ def initialize_logging(args):
 def parse_cmdline_args():
     parser = argparse.ArgumentParser(description="netmri-bootstrap")
 
-    # Global arguments
-    parser.add_argument("-q", help="Quiet logging. Can be repeated to suppress more messages", action='count', default=0)
-    parser.add_argument("-v", help="Verbose logging. Can be repeated to increase verbosity", action='count', default=0)
-
     # arguments for subcommands
     subparsers = parser.add_subparsers(help="Possible subcommands", dest="command", required=True)
 
@@ -67,6 +63,17 @@ def parse_cmdline_args():
     parser_show.add_argument("--id", type=int, help="Id. Optional for objects already in repo", default=None)
     parser_show.add_argument("--overwrite", help="Allow overwriting of existing file, if file in repo has different id", action="store_true")
 
+    # Global arguments
+    quiet_args = {"help": "Quiet logging. Can be repeated to suppress more messages", "action": 'count', "default": 0, "dest": "q"}
+    parser.add_argument("-q", **quiet_args)
+    verbose_args = {"help": "Verbose logging. Can be repeated to increase verbosity", "action": 'count', "default": 0}
+    parser.add_argument("-v", **verbose_args)
+    # Subparsers need to have their own -q and -v definitions.
+    # Otherwise, netmri_bootstrap.py init -v wouldn't work while
+    # netmri_bootstrap.py -v init would
+    for sp in subparsers.choices.values():
+        sp.add_argument("-q", **quiet_args)
+        sp.add_argument("-v", **verbose_args)
     return parser.parse_args()
 
 
