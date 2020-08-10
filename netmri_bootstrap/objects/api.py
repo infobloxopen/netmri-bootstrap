@@ -235,16 +235,19 @@ class ApiObject():
 
     def generate_path(self):
         if self.path is None:
-            logger.debug(self.get_metadata())
             # use id in unlikely case the object has no secondary keys
-            filename = getattr(self, self.secondary_keys[0], str(self.id))
-            logger.debug(f"Generating file path from {filename}")
-            filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", filename)
+            base_key = getattr(self, self.secondary_keys[0], None)
+            if base_key is None:
+                base_key = self.id
+                logger.warn(f"{self.__class__.__name__} object doesn't have "
+                            "{self.secondary_keys[0]}, using id {self.id} "
+                            "instead")
+            filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", base_key)
             extension = self.get_extension()
             filename = '.'.join([filename, extension])
             self.path = os.path.join(self.scripts_dir(), self.get_subpath(),
                                      filename)
-            logger.debug(f"{self.secondary_keys[0]} -> {self.path}")
+            logger.debug(f"Generated path for {base_key}: {self.path}")
         return self.path
 
     def find_by_secondary_keys(self):
