@@ -590,8 +590,7 @@ class ConfigList(ScriptLike):
         # Import of config lists is very, very broken
         self.broker.update(id=self.id, name=self.name,
                            description=self.description)
-        # self.client._authenticate()  # Should already happen in update
-        url = self.client._method_url(broker._get_method_fullname("import"))
+        url = self.client._method_url(self.broker._get_method_fullname("import"))
         resp = self.client.session.request("post", url, files={"overwrite_ind": 1, "file": self._content})
         resp.raise_for_status()
         result = resp.json()
