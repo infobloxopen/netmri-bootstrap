@@ -269,7 +269,7 @@ class ApiObject():
     @staticmethod
     def _parse_error(e):
         msg = str(e)
-        if isinstance(e, exceptions.RequestException):
+        if isinstance(e, exceptions.RequestException) and getattr(e, "response", None) is not None:
             msg = e.response.content
             try:
                 # NetMRI returns errors in JSON
