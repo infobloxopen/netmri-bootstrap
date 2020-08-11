@@ -53,7 +53,9 @@ class Bootstrapper:
             obj.save_note()
 
     def update_netmri(self, retry_errors=False):
-        """Update all objects changed since last synced commit"""
+        """Update all objects changed since last synced commit
+        retry_errors: also sync objects that had error on previous sync
+        """
         added, deleted, changed = self.repo.detect_changes()
         if not retry_errors and len(added) == 0 and len(deleted) == 0 and len(changed) == 0:
             logger.info("No changes to push to server")

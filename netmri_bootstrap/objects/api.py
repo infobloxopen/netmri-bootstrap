@@ -101,7 +101,6 @@ class ApiObject():
     # Create object from XXXRemote
     def from_api(klass, remote):
         logger.debug(f"creating {klass.__name__} from {remote.__class__}")
-        print(remote)
         item_dict = {}
         item_dict["id"] = remote.id
         item_dict["updated_at"] = remote.updated_at
@@ -831,7 +830,6 @@ class PolicyRule(XmlObject):
         self.remediation = self._content.findtext("remediation")
         self.severity = self._content.findtext("severity")
         self.short_name = self._content.findtext("short-name")
-        self.updated_at = self._content.findtext("updated-at")
 
         rule_logic = self._content.find("{http://www.infoblox.com/NetworkAutomation/1.0/ScriptXml}PolicyRuleLogic")
         if rule_logic is not None:
@@ -879,7 +877,6 @@ class Policy(XmlObject):
         self.schedule_mode = self._content.findtext("schedule-mode")
         self.read_only = self._content.findtext("read-only")
         self.short_name = self._content.findtext("short-name")
-        self.updated_at = self._content.findtext("updated-at")
         self.rules = []
         for rule in self._content.iter(tag="policy-rule-reference"):
             self.rules.append(rule.text)
