@@ -3,14 +3,15 @@ import json
 from dataclasses import dataclass
 from infoblox_netmri.client import InfobloxNetMRI
 
-_config = None
 # Note that we cannot just pick latest version because different
 # versions of API tend to, well, differ. Here we assume the customer
 # uses reasonably recent (7.0+) version of NetMRI.
 # Any change in this version must be tested before it's rolled out.
 NETMRI_API_VERSION = "3.1"
 
+_config = None
 _client = None
+
 
 def get_config():
     global _config
@@ -21,6 +22,7 @@ def get_config():
             config_data = json.load(config_fh)
         _config = BootstrapperConfig(**config_data)
     return _config
+
 
 def get_api_client():
     global _client
@@ -34,6 +36,7 @@ def get_api_client():
         )
 
     return _client
+
 
 @dataclass
 class BootstrapperConfig:
