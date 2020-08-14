@@ -171,11 +171,12 @@ class Repo():
     @classmethod
     def init_empty_repo(klass, repo_path, watched_branch='master'):
         logger.warn(f"Creating empty repo in {repo_path}")
-        git.Repo.init(repo_path)
+        repo = git.Repo.init(repo_path)
+        repo.git.commit("--allow-empty", "-m", "Init repo")
         # Create branch to sync with netmri (see bootstrap_branch in config)
         if watched_branch != "master":
             logger.debug(f"Creating branch {watched_branch}")
-            branch = repo.create_head(watched_branch, 'HEAD')
+            branch = repo.create_head(watched_branch)
             repo.head.reference = branch
             # Repo is empty, no need to reset index and working tree
 
