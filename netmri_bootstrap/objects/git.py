@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # all notes should be accessed as .note property of their parent objects
 # This class exists only because gitpython doesn't have support for notes
 class _Note():
+    bootstrap_notes_ref = "refs/notes/netmri-bootstrap"
     def __init__(self, repo, parent, content=None):
         self.repo = repo
         self.parent = parent
@@ -25,7 +26,8 @@ class _Note():
         logger.debug(f"Loading git note for {self.parent.id}")
         note_raw = None
         try:
-            note_raw = self.repo.git.notes('show', self.parent.id)
+            note_raw = self.repo.git.notes('--ref', self.bootstrap_notes_ref,
+                                           'show', self.parent.id)
         except git.exc.GitCommandError as e:
             # This exception is thrown if anything goes wrong. Not having
             # a note attached is expected, any other error should be re-raised
@@ -43,8 +45,9 @@ class _Note():
         old_note = self.parent.find_note_on_ancestors(skip_self=True)
         if old_note is not None:
             old_note.clear()
-        self.repo.git.notes('add', self.parent.id, '-m',
-                            json.dumps(self.content), '-f')
+        self.repo.git.notes('--ref', self.bootstrap_notes_ref, 'add',
+                            self.parent.id, '-f', '-m',
+                            json.dumps(self.content))
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 
@@ -52,7 +55,8 @@ class _Note():
     def clear(self):
         self.content = None
         logger.debug(f"Deleting git note for {self.parent.id}")
-        self.repo.git.notes('remove', self.parent.id)
+        self.repo.git.notes('--ref', self.bootstrap_notes_ref,
+                            'remove', self.parent.id)
         # Reset index to keep stale notes out of it
         self.repo.reset_object_index()
 
@@ -258,7 +262,8 @@ class Repo():
         if self._object_index is None:
             logger.debug("building index from git notes")
             self._object_index = {}
-            for line in self.git.notes('list').splitlines():
+            notes_list = self.git.notes("--ref", _Note.bootstrap_notes_ref, 'list')
+            for line in notes_list.splitlines():
                 # accessing note blob directly is much faster than running
                 # 'git notes show'
                 note_id, note_target = line.split()
