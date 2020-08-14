@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class ApiObject():
-    client = config.get_api_client()
     api_broker = None
     # Lists all attributes that should be received from api
     api_attributes = ()
@@ -20,6 +19,7 @@ class ApiObject():
     secondary_keys = ()
 
     def __init__(self, id=None, blob=None, error=None, **api_metadata):
+        self.client = config.get_api_client()
         self._broker = None
         self.id = id
         if blob is not None:
@@ -75,7 +75,8 @@ class ApiObject():
         """
         if callable(klass.api_broker):
             return klass.api_broker()
-        return klass.client.get_broker(klass.api_broker)
+        client = config.get_api_client()
+        return client.get_broker(klass.api_broker)
 
     @classmethod
     def scripts_dir(klass):
@@ -298,12 +299,12 @@ class ApiObject():
 
 
 class ScriptLike(ApiObject):
-    comment_to_props = {}
     """
     Script-like objects contain their metadata in commented block in
     the beginning of the file. Presently, this includes scripts, script
     modules, config lists and config templates.
     """
+    comment_to_props = {}
     def __init__(self, **kwargs):
         super(ScriptLike, self).__init__(**kwargs)
 
@@ -947,7 +948,7 @@ class CustomIssue(XmlObject):
 
     @classmethod
     def api_broker(klass):
-        client = klass.client
+        client = config.get_api_client()
         return webui_broker.IssueAdhocBroker(
                                              host=client.host,
                                              login=client.username,
