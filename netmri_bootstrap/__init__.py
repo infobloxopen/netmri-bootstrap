@@ -128,25 +128,25 @@ class Bootstrapper:
 
             for obj_id in api_objects_set - git_objects_set:
                 obj = api_objects[obj_id]
-                logger.warn(f"{klass.__name__} \"{obj.name}\" (id: {obj.id}) was added outside of netmri-bootstrap")
+                logger.warning(f"{klass.__name__} \"{obj.name}\" (id: {obj.id}) was added outside of netmri-bootstrap")
                 err_count += 1
 
             for git_id in git_objects_set - api_objects_set:
                 obj = git_objects[git_id]
-                logger.warn(f"{klass.__name__} \"{obj['path']}\" was deleted outside of netmri-bootstrap")
+                logger.warning(f"{klass.__name__} \"{obj['path']}\" was deleted outside of netmri-bootstrap")
                 err_count += 1
 
             for id in git_objects_set & api_objects_set:
                 api_date = time.strptime(api_objects[id].updated_at, "%Y-%m-%d %H:%M:%S")
                 git_date = time.strptime(git_objects[id]["updated_at"], "%Y-%m-%d %H:%M:%S")
                 if git_date < api_date:
-                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" (id: {id}) ({git_objects[id]['path']}) was changed outside of netmri-bootstrap")
+                    logger.warning(f"{klass.__name__} \"{api_objects[id].name}\" (id: {id}) ({git_objects[id]['path']}) was changed outside of netmri-bootstrap")
                     logger.debug(f"modification date on netmri: {api_objects[id].updated_at}, in git: {git_objects[id]['updated_at']}")
                     err_count += 1
 
                 # git_date may be newer than api_date after netmri was restored from an archive.
                 if git_date > api_date:
-                    logger.warn(f"{klass.__name__} \"{api_objects[id].name}\" is outdated on netmri")
+                    logger.warning(f"{klass.__name__} \"{api_objects[id].name}\" is outdated on netmri")
                     err_count += 1
 
         for class_subindex in self.repo.failed_objects.values():
@@ -166,13 +166,13 @@ class Bootstrapper:
         """Checks that there are no untracked and uncommitted files"""
         err_count = 0
         for path in self.repo.repo.untracked_files:
-            logger.warn(f"File {path} is untracked. This file will be ignored")
+            logger.warning(f"File {path} is untracked. This file will be ignored")
             err_count += 1
         for item in self.repo.repo.index.diff(None):
-            logger.warn(f"File {item.a_path} has been modified, but not committed. Changes will be ignored")
+            logger.warning(f"File {item.a_path} has been modified, but not committed. Changes will be ignored")
             err_count += 1
         for item in self.repo.repo.index.diff(self.repo.repo.head.commit):
-            logger.warn(f"File {item.a_path} has been staged for commit. Changes will be ignored")
+            logger.warning(f"File {item.a_path} has been staged for commit. Changes will be ignored")
             err_count += 1
         return err_count
 

@@ -239,7 +239,7 @@ class ApiObject():
             base_key = getattr(self, self.secondary_keys[0], None)
             if base_key is None:
                 base_key = self.id
-                logger.warn(f"{self.__class__.__name__} object doesn't have "
+                logger.warning(f"{self.__class__.__name__} object doesn't have "
                             "{self.secondary_keys[0]}, using id {self.id} "
                             "instead")
             filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", base_key)
@@ -460,7 +460,7 @@ class Script(ScriptLike):
         elif lang == 'python':
             return 'py'
         else:
-            logger.warn(f"{self.path} is written in unknown language {self.lang}")
+            logger.warning(f"{self.path} is written in unknown language {self.lang}")
             return lang
 
     @staticmethod
@@ -542,7 +542,7 @@ class ScriptModule(ScriptLike):
         elif lang == 'python':
             return 'py'
         else:
-            logger.warn(f"{self.path} is written in unknown language {self.lang}")
+            logger.warning(f"{self.path} is written in unknown language {self.lang}")
             return lang
 
     @staticmethod
@@ -690,7 +690,7 @@ class ConfigTemplate(ScriptLike):
                     if tag not in metadata:
                         metadata[tag2attr[tag]] = val
                 else:
-                    logger.warn(f"Unknown {self.api_broker} metadata tag {tag}. Ignoring")
+                    logger.warning(f"Unknown {self.api_broker} metadata tag {tag}. Ignoring")
 
         metadata["template_variables_text"] = template_vars
         metadata["description"] = "\n".join(template_description)

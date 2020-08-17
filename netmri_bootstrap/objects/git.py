@@ -174,7 +174,7 @@ class Repo():
 
     @classmethod
     def init_empty_repo(klass, repo_path, watched_branch='master'):
-        logger.warn(f"Creating empty repo in {repo_path}")
+        logger.warning(f"Creating empty repo in {repo_path}")
         repo = git.Repo.init(repo_path)
         repo.git.commit("--allow-empty", "-m", "Init repo")
         # Create branch to sync with netmri (see bootstrap_branch in config)
@@ -277,7 +277,7 @@ class Repo():
                 if note_id not in self._object_index[note_class]:
                     self._object_index[note_class][note_id] = note_obj
                 else:
-                    logger.warn(
+                    logger.warning(
                         f"Found duplicates for {note_class} id {note_id}: "
                         f"{self._object_index[note_class][note_id]['path']}")
         return self._object_index
