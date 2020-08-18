@@ -160,11 +160,9 @@ class Blob():
         return f"(Blob {self.id}, {self.path})"
 
 
-# TODO: list object categories (scripts, list, templates, etc.) here and
-# initialise subdirs for them
 class Repo():
     def __init__(self, repo_path, watched_branch='master'):
-        self.repo = git.Repo(repo_path)  # TODO: point head to correct branch
+        self.repo = git.Repo(repo_path)
         self.path = repo_path
         self.branch = watched_branch
 
@@ -184,9 +182,11 @@ class Repo():
             repo.head.reference = branch
             # Repo is empty, no need to reset index and working tree
 
+        # We have non-bare repo. Set this to make pushes work
+        repo.config_writer().set_value("receive", "denyCurrentBranch",
+                                       "updateInstead").release()
         return klass(repo_path)
 
-    # TODO: make this work on bare repo
     @check_dryrun
     def stage_file(self, path):
         logger.debug(f"Adding file {path} for commit")
@@ -318,7 +318,7 @@ class Repo():
         Absolute path (/opt/netmri_bootstrap/scripts/foo.py)
         Path relative to current directory (./netmri_bootstrap/scripts/foo.py)
         Path relative to repo root (scripts/foo.py)
-        This method converts them all into path relative to the repo.
+        This method converts them all into path relative to repo root.
         """
         absolute_path = os.path.abspath(path)
         absolute_repo_root = os.path.abspath(self.path)
