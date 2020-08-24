@@ -7,6 +7,7 @@ import logging
 from netmri_bootstrap import Bootstrapper
 from netmri_bootstrap import dryrun
 
+
 def initialize_logging(args):
     loglevel = logging.INFO
     # Every -q will increase loglevel by 10.
@@ -31,42 +32,68 @@ def initialize_logging(args):
         log_format = "%(message)s"
     logging.basicConfig(stream=sys.stdout, level=loglevel, format=log_format)
 
+
 def parse_cmdline_args():
     parser = argparse.ArgumentParser(description="netmri-bootstrap")
 
     # arguments for subcommands
-    subparsers = parser.add_subparsers(help="Possible subcommands", dest="command", required=True)
+    subparsers = parser.add_subparsers(help="Possible subcommands",
+                                       dest="command", required=True)
 
-    parser_init = subparsers.add_parser("init", help="Create empty repository and fill it with data from server")
+    parser_init = subparsers.add_parser("init", help="Create empty repository "
+                                        "and fill it with data from server")
 
-    parser_check = subparsers.add_parser("check", help="Verify that repo and the server are in sync")
-    parser_check.add_argument("--brief", help="Don't verify against server state", action='store_true')
+    parser_check = subparsers.add_parser("check", help="Verify that repo and "
+                                         "the server are in sync")
+    parser_check.add_argument("--brief", help="Don't verify against server "
+                              "state", action='store_true')
 
-    parser_push = subparsers.add_parser("push", help="update objects on server from the repo ")
-    parser_push.add_argument("--retry-errors", help="Attempt to sync previously failed objects", action='store_true')
-    parser_push.add_argument("--dry-run", dest="dryrun", help="Preview changes that will be made to server", action='store_true')
-    parser_push.add_argument("paths", type=str, help="Paths to sync", nargs='*')
+    parser_push = subparsers.add_parser("push", help="update objects on server"
+                                        " from the repo ")
+    parser_push.add_argument("--retry-errors", help="Attempt to sync "
+                             "previously failed objects", action='store_true')
+    parser_push.add_argument("--dry-run", dest="dryrun",
+                             help="Preview changes that'll be made to server",
+                             action='store_true')
+    parser_push.add_argument("paths", type=str, help="Paths to sync",
+                             nargs='*')
 
-    parser_cat = subparsers.add_parser("cat", help="Show object contents in repo or on server")
-    parser_cat.add_argument("--api", dest="api", help="Get object content from server", action='store_true')
+    parser_cat = subparsers.add_parser("cat", help="Show object contents in "
+                                       "the repo or on server")
+    parser_cat.add_argument("--api", dest="api", help="Get object content from"
+                            " the server", action='store_true')
     parser_cat.add_argument("path", type=str, help="Path to the object")
 
-    parser_relink = subparsers.add_parser("sync_id", help="Get id from server based on secondary key (usually name)")
-    parser_relink.add_argument("--dry-run", dest="dryrun", help="Don't make changes in the repo", action='store_true')
+    parser_relink = subparsers.add_parser("sync_id", help="Get id from server "
+                                          "based on secondary key "
+                                          "(usually name)")
+    parser_relink.add_argument("--dry-run", dest="dryrun", help="Don't make "
+                               "changes in the repo", action='store_true')
     parser_relink.add_argument("path", type=str, help="Path to the object")
 
-    parser_show = subparsers.add_parser("show_metadata", help="show metadata for the object")
+    parser_show = subparsers.add_parser("show_metadata", help="show metadata "
+                                        "for the object")
     parser_show.add_argument("path", type=str, help="Path to the object")
 
-    parser_show = subparsers.add_parser("fetch", help="Get file from server and store it in the repository")
-    parser_show.add_argument("path", type=str, help="Path to the object. Every object must be in its class subdir (e.g. all scripts must be in scrpts/ directory)")
-    parser_show.add_argument("--id", type=int, help="Id. Optional for objects already in repo", default=None)
-    parser_show.add_argument("--overwrite", help="Allow overwriting of existing file, if file in repo has different id", action="store_true")
+    parser_show = subparsers.add_parser("fetch", help="Get file from server "
+                                        "and store it in the repository")
+    parser_show.add_argument("path", type=str, help="Path to the object. Every"
+                             " object must be in its class subdir (e.g. all "
+                             "scripts must be in scrpts/ directory)")
+    parser_show.add_argument("--id", type=int, help="Id. Optional for objects "
+                             "already in repo", default=None)
+    parser_show.add_argument("--overwrite", help="Allow overwriting of "
+                             "existing file, if file in repo has different id",
+                             action="store_true")
 
     # Global arguments
-    quiet_args = {"help": "Quiet logging. Can be repeated to suppress more messages", "action": 'count', "default": 0, "dest": "q"}
+    quiet_args = {
+            "action": 'count', "default": 0, "dest": "q",
+            "help": "Quiet logging. Can be repeated to suppress more messages"}
     parser.add_argument("-q", **quiet_args)
-    verbose_args = {"help": "Verbose logging. Can be repeated to increase verbosity", "action": 'count', "default": 0}
+    verbose_args = {
+            "action": 'count', "default": 0,
+            "help": "Verbose logging. Can be repeated to increase verbosity"}
     parser.add_argument("-v", **verbose_args)
     # Subparsers need to have their own -q and -v definitions.
     # Otherwise, netmri_bootstrap.py init -v wouldn't work while
