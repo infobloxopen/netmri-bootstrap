@@ -178,6 +178,7 @@ class ApiObject():
             self.error = self._parse_error(e)
             logger.error(f"An error has occured while syncing {self.path}: "
                          f"{self.error}")
+            self.save_note()
             return False
 
         self.save_note()
