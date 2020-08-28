@@ -1,0 +1,20 @@
+{ 
+    "host": "127.0.0.1",
+    "username": "username",
+    "password": "password",
+    "proto": "https",
+    "ssl_verify": false,
+    "scripts_root": "/tmp/bootstrap_repo",
+    "bootstrap_branch": "master",
+    "skip_readonly_objects": true,
+    "class_paths": {
+        "Script": "scripts",
+        "ScriptModule": "script_modules",
+        "ConfigList": "lists",
+        "PolicyRule": "policy/rules",
+        "Policy": "policy",
+        "ConfigTemplate": "config_templates",
+        "CustomIssue": "custom_issues"
+    }   
+}
+

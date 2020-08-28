@@ -1,0 +1,16 @@
+{ 
+    "host": "localhost",
+    "username": "admin",
+    "password": "unittest",
+    "proto": "https",
+    "ssl_verify": true,
+    "scripts_root": "/tmp/netmri/",
+    "bootstrap_branch": "master",
+    "skip_readonly_objects": true,
+    "class_paths": {
+        "Script": "scripts",
+        "Policy": "policy",
+        "PolicyRule": "policy/rules"
+    }   
+}
+

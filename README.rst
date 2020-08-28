@@ -1,3 +1,8 @@
+=============================================
+WARNING: DO NOT USE THIS ON PRODUCTION SYSTEM
+=============================================
+This is an alpha develoment version. Things may change. Backwards compatibility may break. Bugs may surface at worst possible time
+
 ===============================
 README: NetMRI Bootstrap
 ===============================
