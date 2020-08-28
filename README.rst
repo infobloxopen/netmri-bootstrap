@@ -1,14 +1,6 @@
-=============================================
-WARNING: DO NOT USE THIS ON PRODUCTION SYSTEM
-=============================================
-This is an alpha develoment version. Things may change. Backwards compatibility may break. Bugs may surface at worst possible time
-
 ===============================
 README: NetMRI Bootstrap
 ===============================
-
-.. image:: https://travis-ci.org/infobloxopen/netmri-bootstrap.svg?branch=master
-        :target: https://travis-ci.org/infobloxopen/netmri-bootstrap
 
 .. image:: https://img.shields.io/pypi/v/netmri-bootstrap.svg
         :target: https://pypi.python.org/pypi/netmri-bootstrap
@@ -30,34 +22,13 @@ The goal of NetMRI-bootstrap is to be a framework that allows you to easily writ
 and policies on NetMRI. The workflow would be that you clone this project so it can access your NetMRI instance
 and place your scripts in the relevant folder.
 
-todo:
-
-* netmri-bootstrap/deploy.py: deployment script
-* inclusion of netmri-easy
-* addition of some example scripts
 
 
 Installation
 ------------
-
-Once the project is in a more ready state it will be available through pip.
 
 Install netmri-bootstrap using pip:
 
 ::
 
   pip install netmri-bootstrap
-
-Usage
------
-
-Configure logger prior to loading netmri-bootstrap to get all debug messages in console:
-
-.. code:: python
-
-  import logging
-  logging.basicConfig(level=logging.DEBUG)
-
-TBD
-~~~
-
