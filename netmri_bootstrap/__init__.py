@@ -40,7 +40,7 @@ class Bootstrapper:
                 obj = klass.from_api(item)
                 obj.path = obj.generate_path()
                 obj.load_content_from_api()
-                obj.save_to_disk()
+                self.repo.write_file(obj.path, obj.export_to_repo())
                 saved_objs.append(obj)
 
                 obj._blob = self.repo.stage_file(obj.path)
@@ -248,7 +248,7 @@ class Bootstrapper:
             obj.path = path
 
         obj.load_content_from_api()
-        obj.save_to_disk()
+        self.repo.write_file(obj.path, obj.export_to_repo())
 
         obj._blob = self.repo.stage_file(obj.path)
 

@@ -80,6 +80,8 @@ class Blob():
 
     @classmethod
     def from_note(klass, repo, note):
+        if type(note) is _Note:
+            note = note.content
         blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']),
                         path=note['path'])
         return klass(repo, blob)
@@ -186,6 +188,14 @@ class Repo():
         repo.config_writer().set_value("receive", "denyCurrentBranch",
                                        "updateInstead").release()
         return klass(repo_path)
+
+    @check_dryrun
+    def write_file(self, path, content):
+        fn = os.path.join(self.path, path)
+        os.makedirs(os.path.dirname(fn), exist_ok=True)
+        with open(fn, 'w') as f:
+            f.write(content)
+        return fn
 
     @check_dryrun
     def stage_file(self, path):
