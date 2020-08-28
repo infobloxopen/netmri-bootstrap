@@ -13,7 +13,8 @@
         "ConfigList": "lists",
         "PolicyRule": "policy/rules",
         "Policy": "policy",
-        "ConfigTemplate": "config_templates"
+        "ConfigTemplate": "config_templates",
+        "CustomIssue": "custom_issues"
     }   
 }
 
