@@ -629,7 +629,11 @@ class ConfigTemplate(ScriptLike):
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         res = self.broker.export(id=self.id)
-        self._content = res["content"]
+        if type(res) is dict:
+            self._content = res["content"]
+        else:
+            # Older versions of API can return string instead of JSON on export
+            self._content = res
 
     @check_dryrun
     def _do_push_to_api(self):
