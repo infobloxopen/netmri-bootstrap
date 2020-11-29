@@ -13,7 +13,7 @@ def initialize_logging(args):
     # Every -q will increase loglevel by 10.
     # Every -v will decrease loglevel by 10.
     # -v -v -v -q -q will decrease loglevel by 10 (-30 + 20)
-    loglevel += (args.q - args.v) * 10
+    loglevel += (args.q + args.q_sub - args.v - args.v_sub) * 10
     # Set upper and lower limits on loglevel
     if loglevel < logging.NOTSET:
         loglevel = logging.NOTSET
@@ -88,19 +88,19 @@ def parse_cmdline_args():
 
     # Global arguments
     quiet_args = {
-            "action": 'count', "default": 0, "dest": "q",
+            "action": 'count', "default": 0,
             "help": "Quiet logging. Can be repeated to suppress more messages"}
-    parser.add_argument("-q", **quiet_args)
+    res = parser.add_argument("-q", dest="q", **quiet_args)
     verbose_args = {
             "action": 'count', "default": 0,
             "help": "Verbose logging. Can be repeated to increase verbosity"}
-    parser.add_argument("-v", **verbose_args)
+    parser.add_argument("-v", dest="v", **verbose_args)
     # Subparsers need to have their own -q and -v definitions.
     # Otherwise, netmri_bootstrap.py init -v wouldn't work while
     # netmri_bootstrap.py -v init would
     for sp in subparsers.choices.values():
-        sp.add_argument("-q", **quiet_args)
-        sp.add_argument("-v", **verbose_args)
+        sp.add_argument("-q", dest="q_sub", **quiet_args)
+        sp.add_argument("-v", dest="v_sub", **verbose_args)
     return parser.parse_args()
 
 
