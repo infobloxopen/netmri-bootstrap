@@ -39,7 +39,12 @@ class Bootstrapper:
                 logger.debug(f"processing {broker.controller} id {item.id}")
                 obj = klass.from_api(item)
                 obj.path = obj.generate_path()
-                obj.load_content_from_api()
+                try:
+                    obj.load_content_from_api()
+                except Exception as e:
+                    msg = obj._parse_error(e)
+                    logger.error(f"Cannot sync {broker.controller} id {item.id}: {msg}")
+                    continue
                 self.repo.write_file(obj.path, obj.export_to_repo())
                 saved_objs.append(obj)
 
@@ -185,7 +190,12 @@ class Bootstrapper:
             if obj.id is None:
                 logger.error(f"Cannot fetch content for {obj.path} from server. Object hasn't been synced yet?")
                 return
-            obj.load_content_from_api()
+            try:
+                obj.load_content_from_api()
+            except Exception as e:
+                msg = obj._parse_error(e)
+                logger.error(f"Cannot fetch {obj.broker.controller} id {obj.id}: {msg}")
+                return
         print(obj._content)
 
     def show_metadata(self, path):
@@ -247,7 +257,12 @@ class Bootstrapper:
             obj = klass.from_api(remote)
             obj.path = path
 
-        obj.load_content_from_api()
+        try:
+            obj.load_content_from_api()
+        except Exception as e:
+            msg = obj._parse_error(e)
+            logger.error(f"Cannot fetch {obj.broker.controller} id {obj.id}: {msg}")
+            return
         self.repo.write_file(obj.path, obj.export_to_repo())
 
         obj._blob = self.repo.stage_file(obj.path)
