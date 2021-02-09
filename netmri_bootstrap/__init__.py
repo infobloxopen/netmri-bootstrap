@@ -122,7 +122,7 @@ class Bootstrapper:
                     continue
                 api_objects[api_item.id] = api_item
 
-            for git_item in self.repo.object_index[klass.__name__].values():
+            for git_item in self.repo.object_index.get(klass.__name__, {}).values():
                 if git_item["id"] is None:
                     logger.debug(f"Skipping {klass.__name__} \"{git_item['path']}\" because it doesn't have id assigned (not synced to netmri yet?)")
                     continue
