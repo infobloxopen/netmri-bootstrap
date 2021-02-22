@@ -5,7 +5,7 @@ from netmri_bootstrap import config
 
 class TestConfig(TestCase):
     @classmethod
-    def setUpClass(klass):
+    def setUpClass(cls):
         from importlib import reload
         reload(config)
         config.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),

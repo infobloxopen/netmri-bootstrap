@@ -16,16 +16,16 @@ class Bootstrapper:
         self.repo = repo
 
     @classmethod
-    def init_empty_repo(klass):
+    def init_empty_repo(cls):
         conf = config.get_config()
         logger.debug(f"Creating empty git repository in {conf.scripts_root}")
         os.makedirs(conf.scripts_root)
         repo = git.Repo.init_empty_repo(conf.scripts_root, conf.bootstrap_branch)
-        return klass(repo=repo)
+        return cls(repo=repo)
 
     def export_from_netmri(self):
         """Download all objects of given class (init subcommand)"""
-        logger.debug(f"Downloading API items from NetMRI")
+        logger.debug("Downloading API items from NetMRI")
         saved_objs = []
         for klass in self.get_object_classes():
             broker = klass.get_broker()

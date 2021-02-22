@@ -80,20 +80,20 @@ class Blob():
             return False
 
     @classmethod
-    def from_note(klass, repo, note):
+    def from_note(cls, repo, note):
         if isinstance(note, _Note):
             note = note.content
         blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']),
                         path=note['path'])
-        return klass(repo, blob)
+        return cls(repo, blob)
 
     @classmethod
-    def from_path(klass, repo, path, commit=None):
+    def from_path(cls, repo, path, commit=None):
         # Use latest commit of current branch unless otherwise specified
         if commit is None:
             commit = repo.repo.head.commit
         blob = commit.tree[path]
-        return klass(repo, blob)
+        return cls(repo, blob)
 
     @property
     def note(self):
@@ -174,7 +174,7 @@ class Repo():
         self.reset_object_index()
 
     @classmethod
-    def init_empty_repo(klass, repo_path, watched_branch='master'):
+    def init_empty_repo(cls, repo_path, watched_branch='master'):
         logger.warning(f"Creating empty repo in {repo_path}")
         repo = git.Repo.init(repo_path)
         repo.git.commit("--allow-empty", "-m", "Init repo")
@@ -188,7 +188,7 @@ class Repo():
         # We have non-bare repo. Set this to make pushes work
         repo.config_writer().set_value("receive", "denyCurrentBranch",
                                        "updateInstead").release()
-        return klass(repo_path)
+        return cls(repo_path)
 
     @check_dryrun
     def write_file(self, path, content):

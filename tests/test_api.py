@@ -5,7 +5,7 @@ from httmock import with_httmock, urlmatch
 from netmri_bootstrap import config
 from netmri_bootstrap.objects import api
 from netmri_bootstrap.objects import git
-#import logging
+# import logging
 # logging.basicConfig(level=logging.DEBUG)
 
 BASE_PATH = "/tmp/netmri_bootstrap"
@@ -114,8 +114,8 @@ class TestCaseBase (unittest.TestCase):
         os.system(f"rm -rf {self.repo_path}")
 
     @classmethod
-    def _get_abspath(klass, path):
-        return f"{klass.repo_path}/{path}"
+    def _get_abspath(cls, path):
+        return f"{cls.repo_path}/{path}"
 
     def _write_file(self, path, content):
         if not path.startswith(self.repo_path):

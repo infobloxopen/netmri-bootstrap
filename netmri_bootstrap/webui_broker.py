@@ -72,7 +72,7 @@ class IssueAdhocBroker(WebuiBroker):
             out.append(IssueAdHocRemote(**item))
         return out
 
-    def create(self):
+    def create(self, data):
         url = "/webui/issues_adhoc/create"
         res = self.do_request(url, params=data, method="post")
         return res
@@ -85,7 +85,7 @@ class IssueAdhocBroker(WebuiBroker):
     def destroy(self, id, issue_id):
         url = "/webui/issues_adhoc/delete"
         data = {"IssueAdHocID": id, "IssueTypeID": issue_id}
-        res = self.do_request(url, params=data, method="post")
+        self.do_request(url, params=data, method="post")
 
     def find(self, field, value):
         url = f'/webui/grid_data/custom_issues_config_manage_job_manage_grid.json?IssueSource=C&start=0&limit=31&fields=["{field}"]&query={value}'
