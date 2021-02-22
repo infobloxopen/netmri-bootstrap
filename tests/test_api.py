@@ -5,9 +5,8 @@ from httmock import with_httmock, urlmatch
 from netmri_bootstrap import config
 from netmri_bootstrap.objects import api
 from netmri_bootstrap.objects import git
-from infoblox_netmri.api.remote.models.script_remote import ScriptRemote
 #import logging
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 BASE_PATH = "/tmp/netmri_bootstrap"
 SCRIPT_PY_CONTETNT = r'{"script": {"category": "TEST", "created_at": "2020-07-17 04:56:25", "created_by": "admin", "description": "a description on multiple lines", "id": 74, "language": "Python", "module": "CCS", "name": "test python", "read_only": false, "risk_level": 3, "target_mapping": "device", "taskflow_create": "device\/standard", "taskflow_edit": "device\/standard", "taskflow_revert": null, "transactional_ind": false, "updated_at": "2020-08-10 04:25:48", "updated_by": "admin", "visible": true, "script_variables": [], "_class": "Script"}}'
@@ -18,9 +17,10 @@ SCRIPTMODULE_CONTENT = r'{"script_module": {"category": "None", "created_at": "2
 SCRIPTMODULE_EXPORT = r'{"content": "\ndef say_hello():\n    print(\"Hello universe!\")"}'
 CONFIGLIST_CONTENT = r'{"config_list": {"auth_user_id": null, "created_at": "2020-05-21 05:53:08", "description": "this is another test list (updated)", "id": 6, "name": "test list 6", "updated_at": "2020-07-17 07:16:43", "json_columns": [{"name": "deviceid", "mapping": "deviceid"}, {"name": "text", "mapping": "text"}], "json_column_model": [{"header": "DeviceID", "dataIndex": "deviceid", "id": 37, "position": 1, "hidden": false, "sortable": true}, {"header": "Text", "dataIndex": "text", "id": 38, "position": 2, "hidden": false, "sortable": true}], "_class": "ConfigList"}}'
 CONFIGLIST_EXPORT = r'{"content": "###################################\n# Name:        test list 6\n# Description: this is another test list (updated)\n###################################\n\n\"DeviceID\",\"Text\"\n\"1\",\"a\"\n\"2\",\"b\"\n\"3\",\"c\"\n\"4\",\"d\""}'
-POLICYRULE_CONTENT=r'''{"policy_rule": {"action_after_exec": null, "author": "me, myself and I", "created_at": "2020-05-19 16:01:35", "description": "The description", "id": 1, "name": "example rule", "read_only": false, "remediation": "Not necessary", "rule_logic": "<PolicyRuleLogic editor='basic-file' xmlns='http:\/\/www.infoblox.com\/NetworkAutomation\/1.0\/ScriptXml'>\n<If>\n<Expr op='and'>\n<ConfigFileCheck op='contains-some'>conf t\nconfigure terminal<\/ConfigFileCheck>\n<ConfigFileCheck op='does-not-contain-any'\/>\n<\/Expr>\n<Then><PolicyRulePass\/><\/Then>\n<Else><PolicyRuleFail\/><\/Else>\n<\/If>\n<\/PolicyRuleLogic>", "set_filter": null, "severity": "info", "short_name": "example_rule", "updated_at": "2020-08-11 03:13:54", "_class": "PolicyRule"}}'''
+POLICYRULE_CONTENT = r'''{"policy_rule": {"action_after_exec": null, "author": "me, myself and I", "created_at": "2020-05-19 16:01:35", "description": "The description", "id": 1, "name": "example rule", "read_only": false, "remediation": "Not necessary", "rule_logic": "<PolicyRuleLogic editor='basic-file' xmlns='http:\/\/www.infoblox.com\/NetworkAutomation\/1.0\/ScriptXml'>\n<If>\n<Expr op='and'>\n<ConfigFileCheck op='contains-some'>conf t\nconfigure terminal<\/ConfigFileCheck>\n<ConfigFileCheck op='does-not-contain-any'\/>\n<\/Expr>\n<Then><PolicyRulePass\/><\/Then>\n<Else><PolicyRuleFail\/><\/Else>\n<\/If>\n<\/PolicyRuleLogic>", "set_filter": null, "severity": "info", "short_name": "example_rule", "updated_at": "2020-08-11 03:13:54", "_class": "PolicyRule"}}'''
 POLICY_CONTENT = r'{"policy": {"author": "me", "created_at": "2020-04-29 06:19:01", "description": "Test policy", "id": 1, "name": "test_policy", "read_only": false, "schedule_mode": "change", "set_filter": null, "short_name": "test", "updated_at": "2020-08-10 04:49:28", "_class": "Policy"}}'
 POLICY_POLICYRULES = r'''{"policy_rules": [{"action_after_exec": null, "author": "me, myself and I", "created_at": "2020-05-19 16:01:35", "description": "The description", "id": 1, "name": "example rule", "policy_id": 1, "policy_rule_id": 1, "read_only": false, "remediation": "Not necessary", "rule_logic": "<PolicyRuleLogic editor='basic-file' xmlns='http:\/\/www.infoblox.com\/NetworkAutomation\/1.0\/ScriptXml'>\n<If>\n<Expr op='and'>\n<ConfigFileCheck op='contains-some'>conf t\nconfigure terminal<\/ConfigFileCheck>\n<ConfigFileCheck op='does-not-contain-any'\/>\n<\/Expr>\n<Then><PolicyRulePass\/><\/Then>\n<Else><PolicyRuleFail\/><\/Else>\n<\/If>\n<\/PolicyRuleLogic>", "set_filter": null, "severity": "info", "short_name": "example_rule", "updated_at": "2020-08-11 03:13:54", "_class": "PolicyRule"}, {"action_after_exec": null, "author": "Me, myself, and I", "created_at": "2020-06-01 13:46:15", "description": "", "id": 2, "name": "Example rule No. 2", "policy_id": 1, "policy_rule_id": 2, "read_only": false, "remediation": "No problems here", "rule_logic": "<PolicyRuleLogic editor='basic-file' xmlns='http:\/\/www.infoblox.com\/NetworkAutomation\/1.0\/ScriptXml'>\n<If>\n<Expr op='and'>\n<ConfigFileCheck op='contains-all'>conf t<\/ConfigFileCheck>\n<ConfigFileCheck op='does-not-contain-any'\/>\n<\/Expr>\n<Then><PolicyRulePass\/><\/Then>\n<Else><PolicyRuleFail\/><\/Else>\n<\/If>\n<\/PolicyRuleLogic>", "set_filter": null, "severity": "warning", "short_name": "example2", "updated_at": "2020-06-02 04:13:08", "_class": "PolicyRule"}, {"action_after_exec": null, "author": "Me, myself, and I", "created_at": "2020-06-04 16:45:48", "description": "", "id": 3, "name": "Example rule No. 3", "policy_id": 1, "policy_rule_id": 3, "read_only": false, "remediation": "No problems here", "rule_logic": "<PolicyRuleLogic editor='basic-file' xmlns='http:\/\/www.infoblox.com\/NetworkAutomation\/1.0\/ScriptXml'>\n<If>\n<Expr op='and'>\n<ConfigFileCheck op='contains-all'>conf t<\/ConfigFileCheck>\n<ConfigFileCheck op='does-not-contain-any'\/>\n<\/Expr>\n<Then><PolicyRulePass\/><\/Then>\n<Else><PolicyRuleFail\/><\/Else>\n<\/If>\n<\/PolicyRuleLogic>", "set_filter": null, "severity": "warning", "short_name": "example3", "updated_at": "2020-06-04 16:45:48", "_class": "PolicyRule"}]}'''
+
 
 @urlmatch(path=r"^/api/authenticate$")
 def authenticate_response(url, request):
@@ -172,16 +172,16 @@ class SmokeTest(TestCaseBase):
 
     @with_httmock(authenticate_response, script_modules_show, script_modules_export_file)
     def test_script_module_import(self):
-        obj = self._test_object_import(api.ScriptModule, 10)
+        self._test_object_import(api.ScriptModule, 10)
 
     @with_httmock(authenticate_response, config_lists_show, config_lists_export_file)
     def test_config_list_import(self):
-        obj = self._test_object_import(api.ConfigList, 6)
+        self._test_object_import(api.ConfigList, 6)
 
     @with_httmock(authenticate_response, policy_rules_show)
     def test_policy_rule_import(self):
-        obj = self._test_object_import(api.PolicyRule, 1)
+        self._test_object_import(api.PolicyRule, 1)
 
     @with_httmock(authenticate_response, policies_show, policies_policy_rules)
     def test_policy_import(self):
-        obj = self._test_object_import(api.Policy, 1)
+        self._test_object_import(api.Policy, 1)

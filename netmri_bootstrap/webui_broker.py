@@ -1,8 +1,8 @@
-import json
+from dataclasses import dataclass
 import requests
 import logging
 logger = logging.getLogger(__name__)
-from dataclasses import dataclass, InitVar
+
 
 class WebuiBroker():
     """
@@ -11,6 +11,7 @@ class WebuiBroker():
     behavior can and will change without warning. If there is any possibility
     to use API, use API instead.
     """
+
     def __init__(self, host=None, login=None, password=None, proto="https", ssl_verify=True):
         self.proto = proto
         self.host = host
@@ -52,7 +53,8 @@ class WebuiBroker():
 
 
 class IssueAdhocBroker(WebuiBroker):
-    controller="IssueAdhoc"
+    controller = "IssueAdhoc"
+
     def show(self, id):
         logger.debug("WARNING: CustomIssue uses undocumented API. It may stop working at some point in the future")
         url = f"/webui/issues_adhoc/{id}.json"

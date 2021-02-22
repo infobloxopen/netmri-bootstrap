@@ -5,7 +5,7 @@ import json
 import binascii
 import logging
 from netmri_bootstrap import config
-from netmri_bootstrap.dryrun import get_dryrun, check_dryrun
+from netmri_bootstrap.dryrun import check_dryrun
 logger = logging.getLogger(__name__)
 
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # This class exists only because gitpython doesn't have support for notes
 class _Note():
     bootstrap_notes_ref = "refs/notes/netmri-bootstrap"
+
     def __init__(self, repo, parent, content=None):
         self.repo = repo
         self.parent = parent
@@ -80,7 +81,7 @@ class Blob():
 
     @classmethod
     def from_note(klass, repo, note):
-        if type(note) is _Note:
+        if isinstance(note, _Note):
             note = note.content
         blob = git.Blob(repo.repo, binascii.a2b_hex(note['blob']),
                         path=note['path'])

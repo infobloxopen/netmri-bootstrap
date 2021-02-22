@@ -1,6 +1,6 @@
-import os
 import unittest
 from netmri_bootstrap.objects import api
+
 
 class TestScriptMetadata(unittest.TestCase):
     def test_parse_metadata(self):
@@ -44,7 +44,14 @@ Script-Filter:
         self.assertEqual(obj.category, "TEST")
 
     def test_build_metadata(self):
-        obj = api.Script(id=None, path="scripts/test.py", name="test python", language="Python", description="The description", risk_level="3", category="TEST")
+        obj = api.Script(
+            id=None,
+            path="scripts/test.py",
+            name="test python",
+            language="Python",
+            description="The description",
+            risk_level="3",
+            category="TEST")
         expected = """# BEGIN-INTERNAL-SCRIPT-BLOCK
 ### Script-Level: 3
 ### Script-Category: TEST
@@ -56,7 +63,14 @@ Script-Filter:
         self.assertEqual(obj.build_metadata_block(), expected)
 
     def test_build_metadata_ccs(self):
-        obj = api.Script(id=None, path="scripts/test.ccs", name="test python", language="CCS", description="The description", risk_level="3", category="TEST")
+        obj = api.Script(
+            id=None,
+            path="scripts/test.ccs",
+            name="test python",
+            language="CCS",
+            description="The description",
+            risk_level="3",
+            category="TEST")
         expected = """## Script-Level: 3
 ## Script-Category: TEST
 ## Script-Language: CCS
@@ -66,7 +80,14 @@ Script-Description: The description
         self.assertEqual(obj.build_metadata_block(), expected)
 
     def test_build_multiline_metadata(self):
-        obj = api.Script(id=None, path="scripts/test.py", name="test python", language="Python", description="The description\non two lines", risk_level="3", category="TEST")
+        obj = api.Script(
+            id=None,
+            path="scripts/test.py",
+            name="test python",
+            language="Python",
+            description="The description\non two lines",
+            risk_level="3",
+            category="TEST")
         expected = """# BEGIN-INTERNAL-SCRIPT-BLOCK
 ### Script-Level: 3
 ### Script-Category: TEST

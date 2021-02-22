@@ -22,10 +22,10 @@ class TestConfig(TestCase):
         self.assertEqual(conf.bootstrap_branch, "master")
         self.assertEqual(conf.skip_readonly_objects, True)
         expected_class_paths = {
-                'Script': 'scripts',
-                'Policy': 'policy',
-                'PolicyRule': 'policy/rules'
-            }
+            'Script': 'scripts',
+            'Policy': 'policy',
+            'PolicyRule': 'policy/rules'
+        }
         self.assertEqual(conf.class_paths, expected_class_paths)
 
     def test_get_api_client(self):

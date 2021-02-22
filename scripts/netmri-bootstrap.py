@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import os
 import sys
 import argparse
 import logging
@@ -88,12 +87,12 @@ def parse_cmdline_args():
 
     # Global arguments
     quiet_args = {
-            "action": 'count', "default": 0,
-            "help": "Quiet logging. Can be repeated to suppress more messages"}
+        "action": 'count', "default": 0,
+        "help": "Quiet logging. Can be repeated to suppress more messages"}
     res = parser.add_argument("-q", dest="q", **quiet_args)
     verbose_args = {
-            "action": 'count', "default": 0,
-            "help": "Verbose logging. Can be repeated to increase verbosity"}
+        "action": 'count', "default": 0,
+        "help": "Verbose logging. Can be repeated to increase verbosity"}
     parser.add_argument("-v", dest="v", **verbose_args)
     # Subparsers need to have their own -q and -v definitions.
     # Otherwise, netmri_bootstrap.py init -v wouldn't work while
