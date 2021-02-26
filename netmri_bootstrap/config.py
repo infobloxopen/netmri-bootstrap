@@ -17,14 +17,14 @@ _client = None
 def get_default_config_path():
     """By default, load config.json that's next to this file"""
     base_path = os.path.dirname(os.path.realpath(__file__))
-    return os.path.join(base_path, 'config.json.in')
+    return os.path.join(base_path, 'config.json')
 
 
 def get_config():
     global config_path
     if config_path is None:
         config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                   "config.json.in")
+                                   "config.json")
     global _config
     if _config is None:
         with open(config_path, 'r') as config_fh:

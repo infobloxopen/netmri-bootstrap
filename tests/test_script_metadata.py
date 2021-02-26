@@ -3,6 +3,15 @@ from netmri_bootstrap.objects import api
 
 
 class TestScriptMetadata(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import os
+        from importlib import reload
+        from netmri_bootstrap import config
+        reload(config)
+        config.config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                          "test_config.json")
+
     def test_parse_metadata(self):
         script_content = """
 # BEGIN-INTERNAL-SCRIPT-BLOCK
@@ -30,7 +39,6 @@ print("Hello world!")
 ## Script-Language: CCS
 Script: test ccs
 Script-Description: This is a description
-
 Script-Filter:
     true
         """
