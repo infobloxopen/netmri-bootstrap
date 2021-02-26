@@ -16,16 +16,16 @@ class Bootstrapper:
         self.repo = repo
 
     @classmethod
-    def init_empty_repo(klass):
+    def init_empty_repo(cls):
         conf = config.get_config()
         logger.debug(f"Creating empty git repository in {conf.scripts_root}")
         os.makedirs(conf.scripts_root)
         repo = git.Repo.init_empty_repo(conf.scripts_root, conf.bootstrap_branch)
-        return klass(repo=repo)
+        return cls(repo=repo)
 
     def export_from_netmri(self):
         """Download all objects of given class (init subcommand)"""
-        logger.debug(f"Downloading API items from NetMRI")
+        logger.debug("Downloading API items from NetMRI")
         saved_objs = []
         for klass in self.get_object_classes():
             broker = klass.get_broker()
@@ -124,7 +124,8 @@ class Bootstrapper:
 
             for git_item in self.repo.object_index.get(klass.__name__, {}).values():
                 if git_item["id"] is None:
-                    logger.debug(f"Skipping {klass.__name__} \"{git_item['path']}\" because it doesn't have id assigned (not synced to netmri yet?)")
+                    logger.debug(
+                        f"Skipping {klass.__name__} \"{git_item['path']}\" because it doesn't have id assigned (not synced to netmri yet?)")
                     continue
                 git_objects[git_item["id"]] = git_item
 
@@ -145,8 +146,10 @@ class Bootstrapper:
                 api_date = time.strptime(api_objects[id].updated_at, "%Y-%m-%d %H:%M:%S")
                 git_date = time.strptime(git_objects[id]["updated_at"], "%Y-%m-%d %H:%M:%S")
                 if git_date < api_date:
-                    logger.warning(f"{klass.__name__} \"{api_objects[id].name}\" (id: {id}) ({git_objects[id]['path']}) was changed outside of netmri-bootstrap")
-                    logger.debug(f"modification date on netmri: {api_objects[id].updated_at}, in git: {git_objects[id]['updated_at']}")
+                    logger.warning(
+                        f"{klass.__name__} \"{api_objects[id].name}\" (id: {id}) ({git_objects[id]['path']}) was changed outside of netmri-bootstrap")
+                    logger.debug(
+                        f"modification date on netmri: {api_objects[id].updated_at}, in git: {git_objects[id]['updated_at']}")
                     err_count += 1
 
                 # git_date may be newer than api_date after netmri was restored from an archive.

@@ -69,4 +69,3 @@ class BootstrapperConfig:
             self.use_ssl = False
         else:
             raise ValueError(f"Invalid protocol {self.proto}")
-

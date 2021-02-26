@@ -67,55 +67,55 @@ class ApiObject():
         return self._broker
 
     @classmethod
-    def get_broker(klass):
+    def get_broker(cls):
         """
-        klass.api_broker can be either callable or string. If it's a string,
+        cls.api_broker can be either callable or string. If it's a string,
         we use it as broker for infoblox_netmri. If it's callbale, we use
         its return value as API broker
         """
-        if callable(klass.api_broker):
-            return klass.api_broker()
+        if callable(cls.api_broker):
+            return cls.api_broker()
         client = config.get_api_client()
-        return client.get_broker(klass.api_broker)
+        return client.get_broker(cls.api_broker)
 
     @classmethod
-    def scripts_dir(klass):
-        path = config.get_config().class_paths.get(klass.__name__, None)
+    def scripts_dir(cls):
+        path = config.get_config().class_paths.get(cls.__name__, None)
         if path is None:
-            raise ValueError(f"Cannot determine repo path for {klass.__name__}")
+            raise ValueError(f"Cannot determine repo path for {cls.__name__}")
         return path
 
     @classmethod
-    def _get_subclass_by_path(klass, path):
+    def _get_subclass_by_path(cls, path):
         subclass_name = None
         for cls, cls_path in config.get_config().class_paths.items():
             if path.startswith(cls_path):
                 subclass_name = cls
                 break
 
-        the_module = importlib.import_module(klass.__module__)
+        the_module = importlib.import_module(cls.__module__)
         if subclass_name is None or subclass_name not in dir(the_module):
             raise ValueError(f"Cannot find subclass for path {path}")
         return getattr(the_module, subclass_name)
 
     @classmethod
     # Create object from XXXRemote
-    def from_api(klass, remote):
-        logger.debug(f"creating {klass.__name__} from {remote.__class__}")
+    def from_api(cls, remote):
+        logger.debug(f"creating {cls.__name__} from {remote.__class__}")
         item_dict = {}
         item_dict["id"] = remote.id
         item_dict["updated_at"] = remote.updated_at
-        for attr in klass.api_attributes:
+        for attr in cls.api_attributes:
             item_dict[attr] = getattr(remote, attr, None)
-        logger.debug(f"creating {klass.api_broker} object from {item_dict}")
-        return klass(**item_dict)
+        logger.debug(f"creating {cls.api_broker} object from {item_dict}")
+        return cls(**item_dict)
 
     @classmethod
-    def from_blob(klass, blob):
-        if klass.__name__ == "ApiObject":
-            klass = klass._get_subclass_by_path(blob.path)
+    def from_blob(cls, blob):
+        if cls.__name__ == "ApiObject":
+            cls = cls._get_subclass_by_path(blob.path)
 
-        logger.debug(f"creating {klass.__name__} from {blob.path}")
+        logger.debug(f"creating {cls.__name__} from {blob.path}")
         item_dict = {}
         note = blob.find_note_on_ancestors()
         if note.content is not None:
@@ -123,7 +123,7 @@ class ApiObject():
         item_dict['blob'] = blob
         item_dict['path'] = blob.path
         logger.debug(f"setting attributes from {item_dict}")
-        res = klass(**item_dict)
+        res = cls(**item_dict)
         res.load_content_from_repo()
         # This will update metadata values from note with ones from the content
         # Note that we don't update git note here. It will be done
@@ -154,7 +154,7 @@ class ApiObject():
         # (i. e. content and metatada properties are same as in repo)
         if self._content is None:
             if self.path is None:
-                raise ValueError(f"There is no such file in the repository")
+                raise ValueError("There is no such file in the repository")
             else:
                 raise ValueError(f"Content for {self.path} is not loaded")
         if self.id is None:
@@ -216,13 +216,13 @@ class ApiObject():
 
     def get_note(self):
         return {
-                "id": self.id,
-                "path": self.path,
-                "updated_at": self.updated_at,
-                "blob": self._blob.id,
-                "class": self.__class__.__name__,
-                "error": self.error
-               }
+            "id": self.id,
+            "path": self.path,
+            "updated_at": self.updated_at,
+            "blob": self._blob.id,
+            "class": self.__class__.__name__,
+            "error": self.error
+        }
 
     # Some objects, like scripts, have subcategories.
     # These categories are represented as subdirs
@@ -239,8 +239,8 @@ class ApiObject():
             if base_key is None:
                 base_key = self.id
                 logger.warning(f"{self.__class__.__name__} object doesn't have"
-                            " {self.secondary_keys[0]} attribute , using id "
-                            "{self.id} instead")
+                               " {self.secondary_keys[0]} attribute , using id "
+                               "{self.id} instead")
             filename = re.sub(r"[^A-Za-z0-9_\-.]", "_", base_key)
             extension = self.get_extension()
             filename = '.'.join([filename, extension])
@@ -258,8 +258,8 @@ class ApiObject():
         return self.broker.find(**args)
 
     @classmethod
-    def index(klass):
-        return klass.get_broker().index()
+    def index(cls):
+        return cls.get_broker().index()
 
     def show(self, id=None):
         if id is None:
@@ -304,6 +304,7 @@ class ScriptLike(ApiObject):
     modules, config lists and config templates.
     """
     comment_to_props = {}
+
     def __init__(self, **kwargs):
         super(ScriptLike, self).__init__(**kwargs)
 
@@ -376,12 +377,12 @@ class Script(ScriptLike):
                       'category')
     secondary_keys = ("name",)
     comment_to_props = {
-            None: "name",
-            "Description": "description",
-            "Level": "risk_level",
-            "Category": "category",
-            "Language": "language"
-        }
+        None: "name",
+        "Description": "description",
+        "Level": "risk_level",
+        "Category": "category",
+        "Language": "language"
+    }
 
     def __init__(self, **kwargs):
         super(Script, self).__init__(**kwargs)
@@ -494,11 +495,11 @@ class ScriptModule(ScriptLike):
     api_attributes = ('name', 'category', 'description', 'language')
     secondary_keys = ("name",)
     comment_to_props = {
-            "Export of Script Module": "name",
-            "Language": "language",
-            "Category": "category",
-            "Description": "description"
-        }
+        "Export of Script Module": "name",
+        "Language": "language",
+        "Category": "category",
+        "Description": "description"
+    }
 
     def __init__(self, **kwargs):
         super(ScriptModule, self).__init__(**kwargs)
@@ -558,9 +559,9 @@ class ConfigList(ScriptLike):
     api_attributes = ("name", "description")
     secondary_keys = ("name",)
     comment_to_props = {
-            "Name": "name",
-            "Description": "description"
-        }
+        "Name": "name",
+        "Description": "description"
+    }
 
     def __init__(self, **kwargs):
         super(ConfigList, self).__init__(**kwargs)
@@ -579,7 +580,7 @@ class ConfigList(ScriptLike):
             logger.error("You have hit a bug in infoblox_netmri. "
                          "Please update it to at least 3.6.0.0")
             raise
-        if type(res) is dict:
+        if isinstance(res, dict):
             self._content = res["content"]
         else:
             # Older versions of API can return string instead of JSON on export
@@ -601,10 +602,10 @@ class ConfigList(ScriptLike):
         return self.show(id=result["id"])
 
     # Do we need this? One way to find out
-    #def export_to_repo(self):
+    # def export_to_repo(self):
     #    logger.info(f"{repr(self)} -> {self.path}")
     #    # Metadata block is generated by netmri during export.
-    #    # No need to add it here 
+    #    # No need to add it here
     #    return self._content
 
     # Metadata block is already present in exported file
@@ -629,7 +630,7 @@ class ConfigTemplate(ScriptLike):
     def load_content_from_api(self):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         res = self.broker.export(id=self.id)
-        if type(res) is dict:
+        if isinstance(res, dict):
             self._content = res["content"]
         else:
             # Older versions of API can return string instead of JSON on export
@@ -660,12 +661,12 @@ class ConfigTemplate(ScriptLike):
         template_description = []
         metadata = {}
         tag2attr = {
-                "Level": "risk_level",
-                "Vendor": "vendor",
-                "Device Type": "device_type",
-                "Model": "model",
-                "Version": "version"
-            }
+            "Level": "risk_level",
+            "Vendor": "vendor",
+            "Device Type": "device_type",
+            "Model": "model",
+            "Version": "version"
+        }
         name_regex = re.compile(r'#*\s+Export of Template:\s+(.*)$')
         attr_regex = re.compile(r'^#*\s*Template-([^:]*):\s+(.*)$')
         for line in self._content.splitlines():
@@ -720,17 +721,17 @@ class XmlObject(ApiObject):
         logger.debug(f"downloading content for {self.api_broker} id {self.id}")
         res = self.show()
         rule_tree = E(self.root_element)
-        if type(self.api_attrs) is dict:
+        if isinstance(self.api_attrs, dict):
             api_attrs = self.api_attrs.keys()
         else:
             api_attrs = self.api_attrs
         for attr in api_attrs:
-            if type(self.api_attrs) is list:
+            if isinstance(self.api_attrs, list):
                 attr_in_api = attr.replace('-', '_')
-            elif type(self.api_attrs) is dict:
+            elif isinstance(self.api_attrs, dict):
                 attr_in_api = self.api_attrs[attr]
 
-            if type(res) is dict:
+            if isinstance(res, dict):
                 val = str(res.get(attr_in_api, None))
             else:
                 val = getattr(res, attr_in_api, None)
@@ -919,14 +920,14 @@ class CustomIssue(XmlObject):
 
     root_element = "issue-adhoc"
     api_attrs = {
-            "issue_id": "IssueTypeID",
-            "name": "Title",
-            "description": "Description",
-            "component": "Component",
-            "correctness": "Correctness",
-            "stability": "Stability",
-            "details": "Details"
-        }
+        "issue_id": "IssueTypeID",
+        "name": "Title",
+        "description": "Description",
+        "component": "Component",
+        "correctness": "Correctness",
+        "stability": "Stability",
+        "details": "Details"
+    }
     datetime_attrs = []
     boolean_attrs = ["correctness", "stability"]
     nil_attrs = []
@@ -938,15 +939,15 @@ class CustomIssue(XmlObject):
         self.custom_parsing = {"details": self._parse_details}
 
     @classmethod
-    def api_broker(klass):
+    def api_broker(cls):
         client = config.get_api_client()
         return webui_broker.IssueAdhocBroker(
-                                             host=client.host,
-                                             login=client.username,
-                                             password=client.password,
-                                             proto=client.protocol,
-                                             ssl_verify=client.ssl_verify
-                                            )
+            host=client.host,
+            login=client.username,
+            password=client.password,
+            proto=client.protocol,
+            ssl_verify=client.ssl_verify
+        )
 
     @check_dryrun
     def _do_push_to_api(self):

@@ -3,3 +3,4 @@ flake8>=2.5.0
 coverage>=4.0.2
 tox>=2.1.1
 mock>=1.2
+httmock>=1.2.4

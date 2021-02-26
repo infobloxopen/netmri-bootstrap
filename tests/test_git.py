@@ -25,8 +25,8 @@ class TestCaseBase (unittest.TestCase):
         os.system(f"rm -rf {self.repo_path}")
 
     @classmethod
-    def _get_abspath(klass, path):
-        return f"{klass.repo_path}/{path}"
+    def _get_abspath(cls, path):
+        return f"{cls.repo_path}/{path}"
 
     def _write_file(self, path, content):
         if not path.startswith(self.repo_path):
@@ -93,7 +93,7 @@ class TestRepo(TestCaseBase):
 
         self.repo.mark_bootstrap_sync()
         self.repo.repo.index.remove(file2blob["file3"].path, working_tree=True)
-        self._write_file(self._get_abspath("file2"), f"file file2, updated")
+        self._write_file(self._get_abspath("file2"), "file file2, updated")
         file2blob["file2"] = self.repo.stage_file(file2blob["file2"].path)
         self.repo.commit(message="Edit file2 and delete file3")
         (added, deleted, changed) = self.repo.detect_changes()
@@ -121,7 +121,7 @@ class TestRepo(TestCaseBase):
 class TestBlob(TestCaseBase):
     def test_blob(self):
         filename = "file.txt"
-        self._write_file(self._get_abspath(filename), f"sample file")
+        self._write_file(self._get_abspath(filename), "sample file")
         self.repo.stage_file(filename)
         self.repo.commit()
 
@@ -132,7 +132,7 @@ class TestBlob(TestCaseBase):
 
     def test_note(self):
         filename = "file.txt"
-        self._write_file(self._get_abspath(filename), f"sample file")
+        self._write_file(self._get_abspath(filename), "sample file")
         blob = self.repo.stage_file(filename)
         self.repo.commit()
         self.assertIs(type(blob.note), git._Note)
@@ -155,14 +155,14 @@ class TestBlob(TestCaseBase):
 
     def test_note_operations(self):
         filename = "file.txt"
-        self._write_file(self._get_abspath(filename), f"sample file")
+        self._write_file(self._get_abspath(filename), "sample file")
         blob = self.repo.stage_file(filename)
         self.repo.commit(f"Created {filename}")
 
         the_note = {"blob": blob.id, "path": blob.path}
         blob.note = the_note
 
-        self._write_file(self._get_abspath(filename), f"sample file, updated")
+        self._write_file(self._get_abspath(filename), "sample file, updated")
         new_blob = self.repo.stage_file(filename)
         self.repo.commit(f"New version of {filename}")
         self.assertIsNone(new_blob.note.content)
