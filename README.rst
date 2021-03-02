@@ -11,6 +11,9 @@ README: NetMRI Bootstrap
 .. image:: https://readthedocs.org/projects/netmri-bootstrap/badge/?version=latest
         :target: http://netmri-bootstrap.readthedocs.org/en/latest/?badge=latest
 
+.. image:: https://travis-ci.org/infobloxopen/netmri-bootstrap.svg?branch=master
+    :target: https://travis-ci.org/infobloxopen/netmri-bootstrap
+
 Bootstrap Framework to facilitate development on NetMRI
 
 * Free software: Apache license
