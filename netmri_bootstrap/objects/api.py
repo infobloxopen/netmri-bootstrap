@@ -88,9 +88,9 @@ class ApiObject():
     @classmethod
     def _get_subclass_by_path(cls, path):
         subclass_name = None
-        for cls, cls_path in config.get_config().class_paths.items():
+        for kls, cls_path in config.get_config().class_paths.items():
             if path.startswith(cls_path):
-                subclass_name = cls
+                subclass_name = kls
                 break
 
         the_module = importlib.import_module(cls.__module__)
