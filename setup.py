@@ -20,7 +20,7 @@ with open('testing_requirements.txt') as requirements_file:
 
 setup(
     name='netmri-bootstrap',
-    version='0.0.1',
+    version='0.0.3',
     description="Bootstrapper for interaction with NetMRI",
     long_description=readme + '\n\n' + history,
     long_description_content_type='text/x-rst',

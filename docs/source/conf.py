@@ -22,7 +22,7 @@ copyright = '2019, Ingmar Van Glabbeek'
 author = 'Ingmar Van Glabbeek'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = '0.0.3'
 
 
 # -- General configuration ---------------------------------------------------
