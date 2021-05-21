@@ -34,4 +34,37 @@ Install netmri-bootstrap using pip:
 
 ::
 
-  pip install netmri-bootstrap
+  pip3 install netmri-bootstrap
+
+Once installed:
+
+::
+
+  cd ~/.local/lib/python3.8/site-packages/netmri_bootstrap
+  
+  cp config.json.in config.json
+  
+  nano config.json
+
+
+::
+
+  {
+    "host": "192.168.0.201",
+    "username": "admin",
+    "password": "infoblox",
+    "proto": "http",
+    "ssl_verify": false,
+    "scripts_root": "/home/sbaksh/bootstrap",
+    "bootstrap_branch": "master",
+    "skip_readonly_objects": true,
+    "class_paths": {
+        "Script": "scripts",
+        "ScriptModule": "script_modules",
+        "ConfigList": "lists",
+        "PolicyRule": "policy/rules",
+        "Policy": "policy",
+        "ConfigTemplate": "config_templates",
+        "CustomIssue": "custom_issues"
+    }   
+  }
